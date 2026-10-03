@@ -5,6 +5,7 @@ import type { BusinessProfile } from '../src/memory.ts';
 
 const profile: BusinessProfile = {
   id: 'main', language: 'id', name: 'Sari Homestay', service: 'Room per night',
+  owner: 'Sari', description: 'Family homestay', openingHours: 'Daily 08:00–18:00',
   price: 350000, currency: 'IDR', checkIn: '14:00', capacity: 2,
   location: 'Lombok', allergyPolicy: '', cancellationPolicy: '', updatedAt: '2026-10-03T00:00:00Z'
 };

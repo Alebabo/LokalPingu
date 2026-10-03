@@ -38,6 +38,7 @@ import { hasLanguagePack, hasReverseLanguagePack, installLanguagePack, installRe
 import { decodeRecordedAudio, hasSpeechModel, installSpeechModel, transcribeAudio } from "./local-speech";
 import { clearBusinessData, getProfile, listBookings, listPrices, listProducts, replaceCatalog, savePrice, saveProduct, saveProfile, type BookingRecord, type BusinessProfile, type PriceItem, type Product } from "./memory";
 import { draftReply } from "./reply";
+import { DEMO_SEED_KEY, NOOR_PRICES, NOOR_PRODUCTS, NOOR_PROFILE } from "./demo-data";
 const lokalPinguIconAsset = { url: penguinP };
 import { PenguinP } from "@/components/PenguinP";
 
@@ -324,9 +325,9 @@ function whisperLanguage(name: string): string | undefined {
   return code === "bi" ? undefined : code;
 }
 function blankProfile(language: LanguageCode): BusinessProfile {
-  return { id: "main", language, name: "", service: "", price: null, currency: "IDR", checkIn: "", capacity: null, location: "", allergyPolicy: "", cancellationPolicy: "", updatedAt: new Date().toISOString() };
+  return { id: "main", language, name: "", owner: "", description: "", openingHours: "", service: "", price: null, currency: "IDR", checkIn: "", capacity: null, location: "", allergyPolicy: "", cancellationPolicy: "", updatedAt: new Date().toISOString() };
 }
-const CURRENCIES = ["IDR", "USD", "EUR", "SGD", "MYR", "AUD", "GBP"];
+const CURRENCIES = ["USD", "TZS", "IDR", "EUR", "SGD", "MYR", "AUD", "GBP"];
 const APP_LANGUAGE_OPTIONS: { code: AppLanguage; label: string }[] = [
   { code: "en", label: "English" }, { code: "de", label: "Deutsch" }, { code: "id", label: "Bahasa Indonesia" }, { code: "bn", label: "বাংলা" }, { code: "hi", label: "हिन्दी" }, { code: "ta", label: "தமிழ்" }, { code: "sw", label: "Kiswahili" }, { code: "vi", label: "Tiếng Việt" }, { code: "th", label: "ไทย" }, { code: "ar", label: "العربية" }, { code: "fr", label: "Français" }, { code: "es", label: "Español" },
 ];
@@ -339,7 +340,7 @@ export default function ZipFrontend() {
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [resetConfirm, setResetConfirm] = useState(false);
-  const [onboardingBusiness, setOnboardingBusiness] = useState("");
+  const [onboardingBusiness, setOnboardingBusiness] = useState(NOOR_PROFILE.name);
   const [speakText, setSpeakText] = useState("");
   const [speakTranslation, setSpeakTranslation] = useState("");
   const [speakBusy, setSpeakBusy] = useState(false);
@@ -359,24 +360,24 @@ export default function ZipFrontend() {
   const [textInputLanguage, setTextInputLanguage] = useState("English");
   const [languageOpen, setLanguageOpen] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
-  const [localLanguage, setLocalLanguage] = useState("Bahasa Indonesia");
+  const [localLanguage, setLocalLanguage] = useState("Kiswahili");
   const localLanguageRef = useRef(localLanguage);
   localLanguageRef.current = localLanguage;
   const [packReady, setPackReady] = useState(false);
   const [reversePackReady, setReversePackReady] = useState(false);
   const [packBusy, setPackBusy] = useState(false);
   const [packNotice, setPackNotice] = useState("");
-  const [currency, setCurrency] = useState("IDR");
-  const [profile, setProfile] = useState<BusinessProfile>(() => blankProfile("id"));
+  const [currency, setCurrency] = useState("USD");
+  const [profile, setProfile] = useState<BusinessProfile>(() => ({ ...NOOR_PROFILE }));
   const [message, setMessage] = useState("");
   const [assistantExpanded, setAssistantExpanded] = useState(false);
   const [businessView, setBusinessView] = useState<BusinessView>("overview");
-  const [businessName, setBusinessName] = useState("Your business");
-  const [businessAddress, setBusinessAddress] = useState("Add location in business facts");
+  const [businessName, setBusinessName] = useState(NOOR_PROFILE.name);
+  const [businessAddress, setBusinessAddress] = useState(NOOR_PROFILE.location);
   const busy = false;
   const [notice, setNotice] = useState("");
-  const [products, setProducts] = useState<Product[]>([]);
-  const [prices, setPrices] = useState<PriceItem[]>([]);
+  const [products, setProducts] = useState<Product[]>(NOOR_PRODUCTS);
+  const [prices, setPrices] = useState<PriceItem[]>(NOOR_PRICES);
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
   const [productName, setProductName] = useState("");
   const [priceLabel, setPriceLabel] = useState("");
@@ -607,8 +608,9 @@ export default function ZipFrontend() {
     window.localStorage.removeItem("lokalpingu-local-language");
     window.localStorage.removeItem("lokalpingu-currency");
     setAppLanguage("en");
-    setLocalLanguage("Bahasa Indonesia");
-    setCurrency("IDR");
+    setLocalLanguage("Kiswahili");
+    setCurrency("USD");
+    setOnboardingBusiness(NOOR_PROFILE.name);
     setUtilityView(null);
     setResetConfirm(false);
     setOnboardingStep(0);
@@ -619,14 +621,8 @@ export default function ZipFrontend() {
     let alive = true;
     async function loadBusiness() {
       try {
-      const [savedProfile, storedProducts, storedPrices, storedBookings] = await Promise.all([getProfile(), listProducts(), listPrices(), listBookings()]);
+      let [savedProfile, storedProducts, storedPrices, storedBookings] = await Promise.all([getProfile(), listProducts(), listPrices(), listBookings()]);
       if (!alive) return;
-      if (savedProfile) {
-        setProfile(savedProfile);
-        setBusinessName(savedProfile.name || "Your business");
-        setOnboardingBusiness(savedProfile.name);
-        setBusinessAddress(savedProfile.location || "Saved on this device");
-      }
       let nextProducts = storedProducts;
       let nextPrices = storedPrices;
       const oldProducts = readLocal<Product>(LOCAL_PRODUCTS_KEY);
@@ -639,6 +635,26 @@ export default function ZipFrontend() {
       if (oldProducts.length || oldPrices.length) {
         window.localStorage.removeItem(LOCAL_PRODUCTS_KEY);
         window.localStorage.removeItem(LOCAL_PRICES_KEY);
+      }
+      const profileIsEmpty = !savedProfile || (!savedProfile.name && !savedProfile.service && !savedProfile.location);
+      const demoNotSeeded = !window.localStorage.getItem(DEMO_SEED_KEY);
+      if (profileIsEmpty && !nextProducts.length && !nextPrices.length && demoNotSeeded) {
+        savedProfile = { ...NOOR_PROFILE, updatedAt: new Date().toISOString() };
+        nextProducts = NOOR_PRODUCTS.map((item) => ({ ...item }));
+        nextPrices = NOOR_PRICES.map((item) => ({ ...item }));
+        await Promise.all([saveProfile(savedProfile), replaceCatalog(nextProducts, nextPrices)]);
+        window.localStorage.setItem(DEMO_SEED_KEY, "seeded");
+        window.localStorage.setItem("lokalpingu-local-language", "Kiswahili");
+        window.localStorage.setItem("lokalpingu-currency", "USD");
+        setLocalLanguage("Kiswahili");
+        setCurrency("USD");
+      }
+      if (savedProfile) {
+        const completeProfile = { ...blankProfile(savedProfile.language), ...savedProfile };
+        setProfile(completeProfile);
+        setBusinessName(completeProfile.name || "Your business");
+        setOnboardingBusiness(completeProfile.name);
+        setBusinessAddress(completeProfile.location || "Saved on this device");
       }
       if (alive) { setProducts(nextProducts); setPrices(nextPrices); setBookings(storedBookings); }
       } catch (error) {
@@ -830,6 +846,7 @@ export default function ZipFrontend() {
                 {businessView === "overview" && <>
                    <button type="button" onClick={() => setBusinessView("facts")} className="w-full rounded-2xl border-2 border-border bg-card p-3 text-left shadow-card">
                      <div className="flex items-center gap-3"><span className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent"><MapPin /></span><span className="min-w-0 flex-1"><span className="block truncate font-bold">{businessName}</span><span className="block truncate text-xs font-semibold text-muted-foreground">{businessAddress}</span></span></div>
+                     <div className="mt-3 rounded-xl bg-background p-2.5 text-xs"><p className="font-bold">{profile.owner || "Owner"} · {profile.openingHours || "Hours not set"}</p>{profile.description && <p className="mt-1 font-medium text-muted-foreground">{profile.description}</p>}</div>
                      <div className="mt-2 flex items-center justify-between text-xs font-bold"><span className="text-success">Saved on this device</span><span className="text-muted-foreground">Edit facts</span></div>
                   </button>
                   <div className="mt-3 grid grid-cols-2 gap-3">
@@ -847,10 +864,13 @@ export default function ZipFrontend() {
                 {businessView === "context" && <>
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2"><Input value={productName} onChange={(event) => setProductName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void addProduct(); }} placeholder="Add product or service" className="h-12 rounded-xl border-2" /><Button size="icon" onClick={addProduct} disabled={!productName.trim()} className="size-12 rounded-xl" aria-label="Add product"><Plus /></Button></div>
                    <p className="mt-2 text-xs font-bold text-warning-foreground">{t.offlineModeShort}</p>
-                  <div className="mt-3 space-y-2">{products.length === 0 ? <EmptyState icon={<Package />} text="No products yet" /> : products.map((product) => <div key={product.id} className="rounded-2xl border-2 border-border bg-card p-3 shadow-card"><div className="flex items-center justify-between gap-3"><div><p className="font-bold">{product.name}</p><p className="text-xs font-semibold text-muted-foreground">{product.category}</p></div><span className="rounded-full bg-primary-soft px-2 py-1 text-xs font-bold text-primary">Active</span></div></div>)}</div>
+                  <div className="mt-3 space-y-2">{products.length === 0 ? <EmptyState icon={<Package />} text="No products yet" /> : products.map((product) => <div key={product.id} className="rounded-2xl border-2 border-border bg-card p-3 shadow-card"><div className="flex items-start justify-between gap-3"><div><p className="font-bold">{product.name}</p><p className="text-xs font-semibold text-primary">{product.category}</p>{product.description && <p className="mt-1 text-xs font-medium text-muted-foreground">{product.description}</p>}</div><span className="rounded-full bg-primary-soft px-2 py-1 text-xs font-bold text-primary">Active</span></div></div>)}</div>
                 </>}
                  {businessView === "facts" && <form onSubmit={(event) => void saveFacts(event)} className="space-y-3">
                    <label className="block text-sm font-bold">Business name<Input value={profile.name} onChange={(event) => setProfile({ ...profile, name: event.target.value })} maxLength={100} className="mt-1 h-11 rounded-xl border-2" /></label>
+                   <label className="block text-sm font-bold">Operator<Input value={profile.owner} onChange={(event) => setProfile({ ...profile, owner: event.target.value })} maxLength={100} className="mt-1 h-11 rounded-xl border-2" /></label>
+                   <label className="block text-sm font-bold">Description<textarea value={profile.description} onChange={(event) => setProfile({ ...profile, description: event.target.value })} maxLength={300} rows={3} className="mt-1 w-full resize-none rounded-xl border-2 border-border bg-card p-3 text-sm font-medium outline-none focus:border-primary" /></label>
+                   <label className="block text-sm font-bold">Opening hours<Input value={profile.openingHours} onChange={(event) => setProfile({ ...profile, openingHours: event.target.value })} maxLength={100} className="mt-1 h-11 rounded-xl border-2" /></label>
                    <label className="block text-sm font-bold">Service in English<Input value={profile.service} onChange={(event) => setProfile({ ...profile, service: event.target.value })} maxLength={120} className="mt-1 h-11 rounded-xl border-2" /></label>
                    <label className="block text-sm font-bold">Check-in time<Input type="time" value={profile.checkIn} onChange={(event) => setProfile({ ...profile, checkIn: event.target.value })} className="mt-1 h-11 rounded-xl border-2" /></label>
                    <label className="block text-sm font-bold">Maximum guests<Input type="number" min="1" value={profile.capacity ?? ""} onChange={(event) => setProfile({ ...profile, capacity: event.target.value ? Number(event.target.value) : null })} className="mt-1 h-11 rounded-xl border-2" /></label>
@@ -862,18 +882,17 @@ export default function ZipFrontend() {
                  {businessView === "interactions" && <div className="space-y-3">{bookings.length === 0 ? <p className="text-sm text-muted-foreground">No interactions saved with customer consent.</p> : [...bookings].reverse().map((item) => <div key={item.id} className="rounded-xl border-2 border-border bg-card p-3 text-sm"><p className="text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString()}</p><p className="mt-2 font-bold">Guest: {item.customerMessage}</p><p className="mt-2">Approved reply: {item.approvedReply}</p></div>)}</div>}
                 {businessView === "prices" && <>
                   <div className="grid grid-cols-[minmax(0,1fr)_5.5rem_auto] gap-2"><Input value={priceLabel} onChange={(event) => setPriceLabel(event.target.value)} placeholder="Item" className="h-12 rounded-xl border-2" /><Input value={priceValue} onChange={(event) => setPriceValue(event.target.value)} inputMode="decimal" placeholder="Price" className="h-12 rounded-xl border-2" /><Button size="icon" onClick={addPrice} disabled={!priceLabel.trim() || !priceValue} className="size-12 rounded-xl" aria-label="Add price"><Plus /></Button></div>
-                  <div className="mt-3 space-y-2">{prices.length === 0 ? <EmptyState icon={<Tag />} text="No prices yet" /> : prices.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl border-2 border-border bg-card p-3 shadow-card"><div><p className="font-bold">{item.label}</p><p className="text-xs font-semibold text-muted-foreground">per {item.unit}</p></div><strong className="text-primary">{money(Number(item.price), item.currency, currency)}</strong></div>)}</div>
+                  <div className="mt-3 space-y-2">{prices.length === 0 ? <EmptyState icon={<Tag />} text="No prices yet" /> : prices.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl border-2 border-border bg-card p-3 shadow-card"><div><p className="font-bold">{item.label}</p><p className="text-xs font-semibold text-muted-foreground">per {item.unit}</p></div><div className="shrink-0 text-right"><strong className="block text-primary">{money(Number(item.price), item.currency, currency)}</strong>{item.localPrice && item.localCurrency && <span className="text-xs font-bold text-muted-foreground">{item.localCurrency === "TZS" ? "TSh" : item.localCurrency} {item.localPrice.toLocaleString("en-US")}</span>}</div></div>)}</div>
                 </>}
                 {businessView === "kpi" && <>
                    <p className="mb-2 text-xs font-bold text-warning-foreground">Illustrative demo data. No booking connector is active.</p>
-                  <div className="flex gap-3 rounded-2xl border-2 border-border bg-card p-3 shadow-card"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary"><TrendingUp /></span><div><p className="font-bold">Demand rising on weekends</p><p className="mt-0.5 text-sm font-medium text-muted-foreground">Saturday bookings are up 24% — consider a weekend rate for the kayak tour.</p></div></div>
-                  <div className="mt-3 grid grid-cols-2 gap-3"><Metric icon={<Tag />} label="Avg. booking" value={money(278000, "IDR", currency)} change="+6%" /><Metric icon={<Star />} label="Rating" value="4.8" change="+0.1" /></div>
+                  <div className="flex gap-3 rounded-2xl border-2 border-border bg-card p-3 shadow-card"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary"><TrendingUp /></span><div><p className="font-bold">Guest feedback summary</p><p className="mt-0.5 text-sm font-medium text-muted-foreground">Guests love the traditional roasting ritual and fresh lunch. The most common question is how to travel from Ondera Market, so the directions are saved in the fact sheet.</p></div></div>
+                  <div className="mt-3 grid grid-cols-2 gap-3"><Metric icon={<MessageCircle />} label="Requests this month" value="28" change="Demo dataset" /><Metric icon={<Star />} label="Top experience" value="Coffee ritual" change="Guest feedback" /></div>
                   <div className="mt-3 rounded-2xl border-2 border-border bg-card p-3 shadow-card">
-                    <p className="font-bold">Bookings this week</p>
-                    <div className="mt-3 flex h-28 items-end gap-2" aria-label="Bookings chart">
-                      {[40, 55, 35, 60, 80, 100, 70].map((h, i) => <span key={i} className={`w-full rounded-t-md ${i === 5 ? "bg-primary" : "bg-primary-soft"}`} style={{ height: `${h}%` }} />)}
+                    <p className="font-bold">Most common guest languages</p>
+                    <div className="mt-3 space-y-3" aria-label="Guest language distribution">
+                      {[["English", 65], ["German", 20], ["French", 15]].map(([label, value]) => <div key={String(label)}><div className="flex justify-between text-xs font-bold"><span>{label}</span><span>{value}%</span></div><div className="mt-1 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${value}%` }} /></div></div>)}
                     </div>
-                    <div className="mt-2 flex justify-between text-[0.65rem] font-bold text-muted-foreground"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
                   </div>
                 </>}
               </div>
@@ -944,6 +963,15 @@ function SettingsView({ t, appLanguage, setAppLanguage, localLanguage, setLocalL
           <select id="settings-currency" value={currency} onChange={(event) => setCurrency(event.target.value)} className="mt-2 h-12 w-full rounded-xl border-2 border-border bg-background px-3 font-bold outline-none focus:border-primary">
             {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
           </select>
+        </div>
+        <div className="mt-4 rounded-2xl border-2 border-border bg-card p-3 shadow-card">
+          <p className="text-xs font-bold uppercase text-muted-foreground">Data & model grounding</p>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
+            <span className="rounded-full bg-primary-soft px-2.5 py-1 text-primary">On-device Whisper Tiny</span>
+            <span className="rounded-full bg-accent-soft px-2.5 py-1 text-accent">Quantized OPUS-MT</span>
+            <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">Owner-confirmed local facts</span>
+          </div>
+          <p className="mt-2 text-xs font-medium text-muted-foreground">Evaluation references: FLORES-200 and MASSIVE are not bundled. OpenStreetMap/Overpass is planned and currently disconnected.</p>
         </div>
         <div className="mt-5 rounded-2xl border-2 border-destructive/30 bg-card p-3">
           <p className="font-bold text-destructive">{t.reset}</p>

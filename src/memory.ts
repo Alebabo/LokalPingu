@@ -4,6 +4,9 @@ export interface BusinessProfile {
   id: 'main';
   language: LanguageCode;
   name: string;
+  owner: string;
+  description: string;
+  openingHours: string;
   service: string;
   price: number | null;
   currency: string;
@@ -37,6 +40,8 @@ export interface PriceItem {
   label: string;
   price: number;
   currency: string;
+  localPrice?: number;
+  localCurrency?: string;
   unit: string;
   active: boolean;
 }

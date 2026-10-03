@@ -7,22 +7,23 @@ import { languages } from "../languages";
 import { type Draft } from "../reply";
 
 
-export type ChatMessage = { id: string; from: "guest" | "me"; text: string; time: string };
-export type Thread = { id: string; name: string; initials: string; tone: string; guests: number; unread: number; messages: ChatMessage[] };
+export type ChatMessage = { id: string; from: "guest" | "me"; text: string; time: string; translation?: string };
+export type Thread = { id: string; name: string; initials: string; tone: string; guests: number; unread: number; language: string; messages: ChatMessage[] };
 
 const now = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 export const INITIAL_THREADS: Thread[] = [
-  { id: "emma", name: "Emma Wilson", initials: "EW", tone: "bg-accent-soft text-accent", guests: 2, unread: 2, messages: [
-    { id: "e1", from: "guest", text: "Hi! We are two guests arriving on Friday.", time: "10:40" },
-    { id: "e2", from: "guest", text: "Is breakfast included?", time: "10:42" },
+  { id: "coffee", name: "Alex & Jamie", initials: "AJ", tone: "bg-accent-soft text-accent", guests: 2, unread: 1, language: "English", messages: [
+    { id: "coffee-1", from: "guest", text: "Hi Noor! We are 2 people visiting tomorrow around 2 PM. Do you have a coffee tour available and how much does it cost?", translation: "Hujambo Noor! Sisi ni watu 2 tunatembelea kesho mwendo wa saa nane mchana. Je, kuna ziara ya kahawa na inagharimu kiasi gani?", time: "10:40" },
+    { id: "coffee-2", from: "me", text: "Hello! Our Traditional Coffee Tour takes 2 hours and costs $15 per person ($30 total). I will confirm the 2 PM slot before reserving it for you.", time: "10:42" },
   ] },
-  { id: "noah", name: "Noah Martin", initials: "NM", tone: "bg-primary-soft text-primary", guests: 1, unread: 0, messages: [
-    { id: "n1", from: "me", text: "Your room is confirmed for Friday.", time: "09:10" },
-    { id: "n2", from: "guest", text: "Perfect, see you Friday!", time: "09:18" },
+  { id: "vegetarian", name: "Mara & Jonas", initials: "MJ", tone: "bg-primary-soft text-primary", guests: 2, unread: 1, language: "Deutsch", messages: [
+    { id: "vegetarian-1", from: "guest", text: "Guten Tag! Wir würden gerne die Farm-Tour machen. Gibt es bei dem Mittagessen auch eine vegetarische Option?", time: "09:10" },
+    { id: "vegetarian-2", from: "me", text: "Guten Tag! Ja, unser Farm-to-Table Mittagessen ($10/Person) bietet frische vegetarische Spezialitäten mit Gemüse von unserem eigenen Feld. Wir bereiten das sehr gerne für Sie vor!", time: "09:13" },
   ] },
-  { id: "sofia", name: "Sofia Rossi", initials: "SR", tone: "bg-warning-soft text-warning-foreground", guests: 2, unread: 1, messages: [
-    { id: "s1", from: "guest", text: "Can we check in early?", time: "Yesterday" },
+  { id: "directions", name: "Sofia Rossi", initials: "SR", tone: "bg-warning-soft text-warning-foreground", guests: 1, unread: 1, language: "English", messages: [
+    { id: "directions-1", from: "guest", text: "Is your farm easy to reach with a local taxi or minibus from the town center?", time: "Yesterday" },
+    { id: "directions-2", from: "me", text: "Yes! Take the local minibus towards Ondera Market and ask the driver to drop you at 'Noor's Coffee Stop'. It is a 3-minute walk from the main road.", time: "Yesterday" },
   ] },
 ];
 
@@ -135,6 +136,7 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
   const toggleTranslation = async (message: ChatMessage) => {
     if (shown[message.id]) { setShown((items) => ({ ...items, [message.id]: false })); return; }
     setShown((items) => ({ ...items, [message.id]: true }));
+    if (message.translation) { setTranslations((items) => ({ ...items, [message.id]: message.translation! })); return; }
     if (!packReady) { setTranslations((items) => ({ ...items, [message.id]: "Download this language's offline model in Settings first." })); return; }
     const code = languages.find((item) => item.name === language)?.code;
     if (!code) return;
@@ -152,7 +154,7 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
       <div className="flex items-center gap-3 border-b-2 border-border pb-3">
         <Button size="icon" variant="ghost" onClick={onBack} aria-label={copy.back} className="rounded-xl"><ArrowLeft className="size-5" /></Button>
         <GuestAvatar guests={thread.guests} size="size-10" />
-        <div className="min-w-0 flex-1"><strong className="block truncate font-display text-lg">{thread.name}</strong><small className="font-semibold text-primary">Demo chat · English</small></div>
+        <div className="min-w-0 flex-1"><strong className="block truncate font-display text-lg">{thread.name}</strong><small className="font-semibold text-primary">Demo chat · {thread.language}</small></div>
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto py-3">
         {thread.messages.map((m) => (
@@ -163,7 +165,7 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
                 {m.from === "guest" && shown[m.id] && <p className="mt-1.5 border-t-2 border-border pt-1.5 text-accent">{translating[m.id] ? "…" : (translations[m.id] ?? copy.noTranslation ?? "No offline translation available.")}</p>}
                 <span className={`mt-0.5 flex items-center justify-end gap-1 text-[0.65rem] ${m.from === "me" ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{m.time}{m.from === "me" && <Copy className="size-3" />}</span>
               </div>
-              {m.from === "guest" && <Button type="button" size="icon" variant="ghost" onClick={() => void toggleTranslation(m)} aria-label={shown[m.id] ? (copy.original ?? "Hide translation") : (copy.translate ?? "Translate")} title={shown[m.id] ? (copy.original ?? "Hide translation") : (copy.translate ?? "Translate")} className={`size-9 shrink-0 rounded-xl ${shown[m.id] ? "bg-accent-soft text-accent" : "text-muted-foreground"}`}><Languages className="size-4" /></Button>}
+              {m.from === "guest" && thread.language === "English" && <Button type="button" size="icon" variant="ghost" onClick={() => void toggleTranslation(m)} aria-label={shown[m.id] ? (copy.original ?? "Hide translation") : (copy.translate ?? "Translate")} title={shown[m.id] ? (copy.original ?? "Hide translation") : (copy.translate ?? "Translate")} className={`size-9 shrink-0 rounded-xl ${shown[m.id] ? "bg-accent-soft text-accent" : "text-muted-foreground"}`}><Languages className="size-4" /></Button>}
             </div>
           </div>
         ))}
