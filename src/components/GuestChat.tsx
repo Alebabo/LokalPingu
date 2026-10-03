@@ -86,7 +86,7 @@ export function ThreadList({ threads, onOpen }: { threads: Thread[]; onOpen: (id
   );
 }
 
-export function Conversation({ thread, onBack, onSend, copy, language, packReady, onDraft, onModelEvent }: { thread: Thread; onBack: () => void; onSend: (text: string) => void; copy: Copy; language: string; packReady: boolean; onDraft: (thread: Thread) => Promise<Draft>; onModelEvent?: (model: string, kind: ModelEventKind, message: string) => void }) {
+export function Conversation({ thread, onBack, onSend, copy, language, packReady, latencyMultiplier, onDraft, onModelEvent }: { thread: Thread; onBack: () => void; onSend: (text: string) => void; copy: Copy; language: string; packReady: boolean; latencyMultiplier: number; onDraft: (thread: Thread) => Promise<Draft>; onModelEvent?: (model: string, kind: ModelEventKind, message: string) => void }) {
   const [draft, setDraft] = useState("");
   const [draftLocal, setDraftLocal] = useState("");
   const [draftBusy, setDraftBusy] = useState(false);
@@ -113,9 +113,10 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
   const createDraft = async () => {
     const guestMessage = thread.messages.filter((message) => message.from === "guest").at(-1)?.text ?? "";
     onModelEvent?.("Local Reply Composer", "run", `Guest input: “${guestMessage.slice(0, 140)}”`);
+    const started = performance.now();
     try {
       const next = await onDraft(thread);
-      onModelEvent?.("Local Reply Composer", "output", `Draft: “${next.text.slice(0, 180)}”`);
+      onModelEvent?.("Local Reply Composer", "output", `${Math.round(performance.now() - started)} ms · Draft: “${next.text.slice(0, 180)}”`);
       setPlan(next);
       setDraft(next.text);
       setDraftLocal("");
@@ -131,10 +132,12 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
     if (!packReady || !code || !text.trim()) return;
     setDraftBusy(true);
     onModelEvent?.(`OPUS-MT English→${language}`, "run", `Draft input: “${text.slice(0, 140)}”`);
+    const started = performance.now();
     try {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, Math.round(800 * latencyMultiplier)));
       const translated = await translateEnglish(code, text);
       setDraftLocal(translated);
-      onModelEvent?.(`OPUS-MT English→${language}`, "output", `Draft output: “${translated.slice(0, 180)}”`);
+      onModelEvent?.(`OPUS-MT English→${language}`, "output", `${Math.round(performance.now() - started)} ms · Draft output: “${translated.slice(0, 180)}”`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Draft translation failed.");
       onModelEvent?.(`OPUS-MT English→${language}`, "error", error instanceof Error ? error.message : "Draft translation failed");
@@ -155,10 +158,12 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
     if (!code) return;
     setTranslating((items) => ({ ...items, [message.id]: true }));
     onModelEvent?.(`OPUS-MT English→${language}`, "run", `Chat input: “${message.text.slice(0, 140)}”`);
+    const started = performance.now();
     try {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, Math.round(800 * latencyMultiplier)));
       const translated = await translateEnglish(code, message.text);
       setTranslations((items) => ({ ...items, [message.id]: translated }));
-      onModelEvent?.(`OPUS-MT English→${language}`, "output", `Chat output: “${translated.slice(0, 180)}”`);
+      onModelEvent?.(`OPUS-MT English→${language}`, "output", `${Math.round(performance.now() - started)} ms · Chat output: “${translated.slice(0, 180)}”`);
     }
     catch (error) {
       setTranslations((items) => ({ ...items, [message.id]: copy.noTranslation ?? "No offline translation available." }));

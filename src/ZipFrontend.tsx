@@ -22,6 +22,7 @@ import {
   Send,
   Settings,
   ShieldCheck,
+  Smartphone,
   Sparkles,
   Star,
   TrendingUp,
@@ -49,6 +50,12 @@ type AppLanguage = keyof typeof UI;
 type UtilityView = "notifications" | "settings" | null;
 export type ModelEventKind = "info" | "run" | "output" | "ready" | "error";
 export type ModelEvent = { id: string; time: string; model: string; kind: ModelEventKind; message: string };
+type DeviceProfile = { name: string; detail: string; factor: number; whisper: string; opus: string; reply: string };
+const DEVICE_PROFILES: DeviceProfile[] = [
+  { name: "Einsteiger", detail: "4 GB · 4 Kerne", factor: 2, whisper: "0,4×", opus: "~1,6 s", reply: "~0,9 s" },
+  { name: "Mittelklasse", detail: "6 GB · 8 Kerne", factor: 1, whisper: "0,8×", opus: "~0,8 s", reply: "~0,45 s" },
+  { name: "High-End", detail: "12 GB · NPU", factor: 0.45, whisper: "1,6×", opus: "~0,35 s", reply: "~0,2 s" },
+];
 const LOCAL_PRODUCTS_KEY = "lokalpingu-local-products";
 const LOCAL_PRICES_KEY = "lokalpingu-local-prices";
 const CONNECTORS: { name: string; icon: SimpleIcon }[] = [
@@ -376,7 +383,7 @@ export default function ZipFrontend() {
   const [businessView, setBusinessView] = useState<BusinessView>("overview");
   const [businessName, setBusinessName] = useState(NOOR_PROFILE.name);
   const [businessAddress, setBusinessAddress] = useState(NOOR_PROFILE.location);
-  const busy = false;
+  const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [products, setProducts] = useState<Product[]>(NOOR_PRODUCTS);
   const [prices, setPrices] = useState<PriceItem[]>(NOOR_PRICES);
@@ -385,16 +392,28 @@ export default function ZipFrontend() {
   const [priceLabel, setPriceLabel] = useState("");
   const [priceValue, setPriceValue] = useState("");
   const [assistantMessages, setAssistantMessages] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
+  const [deviceLevel, setDeviceLevel] = useState(1);
   const [modelEvents, setModelEvents] = useState<ModelEvent[]>(() => [
     { id: "runtime", time: new Date().toLocaleTimeString([], { hour12: false }), model: "Runtime", kind: "ready", message: "WASM workers ready · local inference only" },
     { id: "facts", time: new Date().toLocaleTimeString([], { hour12: false }), model: "Business Memory", kind: "ready", message: "Noor fact sheet and 4 verified offers loaded" },
   ]);
   const guest = useGuestThreads();
   const t = UI[appLanguage];
+  const deviceProfile = DEVICE_PROFILES[deviceLevel] ?? DEVICE_PROFILES[1]!;
 
   function traceModel(model: string, kind: ModelEventKind, message: string) {
     const event: ModelEvent = { id: crypto.randomUUID(), time: new Date().toLocaleTimeString([], { hour12: false }), model, kind, message };
     setModelEvents((events) => [...events.slice(-39), event]);
+  }
+
+  function simulateDeviceLatency(baseMs: number) {
+    return new Promise<void>((resolve) => window.setTimeout(resolve, Math.round(baseMs * deviceProfile.factor)));
+  }
+
+  function selectDevice(level: number) {
+    const profile = DEVICE_PROFILES[level] ?? DEVICE_PROFILES[1]!;
+    setDeviceLevel(level);
+    traceModel("Device simulator", "info", `${profile.name} selected · ${profile.detail} · ${profile.factor}× latency`);
   }
 
   useEffect(() => {
@@ -500,11 +519,13 @@ export default function ZipFrontend() {
     setSpeakBusy(true);
     setSpeakNotice("");
     traceModel(modelLabel, "run", `Input: “${speakText.trim().slice(0, 140)}”`);
+    const started = performance.now();
     try {
+      await simulateDeviceLatency(800);
       const result = toEnglish ? await translateToEnglish(languageCode(selected), speakText.trim()) : await translateEnglish(languageCode(selected), speakText.trim());
       if (selected !== localLanguageRef.current) return;
       setSpeakTranslation(result);
-      traceModel(modelLabel, "output", `Output: “${result.slice(0, 180)}”`);
+      traceModel(modelLabel, "output", `${Math.round(performance.now() - started)} ms · “${result.slice(0, 180)}”`);
       const normalized = (value: string) => value.replace(/[^\p{L}\p{N}]+/gu, " ").trim().toLowerCase();
       setSpeakNotice(normalized(result) === normalized(speakText) ? "Translation repeated the input. Check with a person." : "Check price, dates and allergies against the original message.");
     } catch (error) {
@@ -547,11 +568,13 @@ export default function ZipFrontend() {
     setSpeakBusy(true);
     setSpeakNotice("Transcribing on this device…");
     traceModel("Whisper Tiny q8", "run", `Transcribing ${inputLanguage} audio on device`);
+    const speechStarted = performance.now();
     try {
       const audio = await decodeRecordedAudio(blob);
       if (audio.length < 3_200) throw new Error("Recording was too short. Speak for at least one second.");
+      await simulateDeviceLatency(1_200);
       const transcript = await transcribeAudio(audio, whisperLanguage(inputLanguage));
-      traceModel("Whisper Tiny q8", "output", `Transcript: “${transcript.slice(0, 180)}”`);
+      traceModel("Whisper Tiny q8", "output", `${Math.round(performance.now() - speechStarted)} ms · Transcript: “${transcript.slice(0, 180)}”`);
       setSpeakText(transcript);
       setSpeakTranslation("");
       const toEnglish = inputLanguage !== "English";
@@ -563,11 +586,13 @@ export default function ZipFrontend() {
       setSpeakNotice("Translating on this device…");
       const modelLabel = `OPUS-MT ${toEnglish ? `${localLanguage}→English` : `English→${localLanguage}`}`;
       traceModel(modelLabel, "run", `Input: “${transcript.slice(0, 140)}”`);
+      const translationStarted = performance.now();
+      await simulateDeviceLatency(800);
       const translated = toEnglish
         ? await translateToEnglish(languageCode(localLanguage), transcript)
         : await translateEnglish(languageCode(localLanguage), transcript);
       setSpeakTranslation(translated);
-      traceModel(modelLabel, "output", `Output: “${translated.slice(0, 180)}”`);
+      traceModel(modelLabel, "output", `${Math.round(performance.now() - translationStarted)} ms · “${translated.slice(0, 180)}”`);
       setSpeakNotice("Speech and translation stayed on this device.");
     } catch (error) {
       setSpeakNotice(error instanceof Error ? error.message : "Speech recognition failed.");
@@ -757,18 +782,23 @@ export default function ZipFrontend() {
     const text = (override ?? message).trim();
     if (!text) return;
     setAssistantMessages((msgs) => [...msgs, { role: "user", text }]);
+    setBusy(true);
     traceModel("Local Assistant · rules", "run", `Input: “${text.slice(0, 140)}”`);
+    const started = performance.now();
     try {
+      await simulateDeviceLatency(450);
       const [savedProducts, savedPrices] = await Promise.all([listProducts(), listPrices()]);
       const result = runLocalAssistant(text, appLanguage, savedProducts, savedPrices, businessName, currency);
       if (result.products !== savedProducts || result.prices !== savedPrices) await replaceCatalog(result.products, result.prices);
       setAssistantMessages((msgs) => [...msgs, { role: "assistant", text: result.reply }]);
-      traceModel("Local Assistant · rules", "output", `Reply: “${result.reply.slice(0, 180)}”`);
+      traceModel("Local Assistant · rules", "output", `${Math.round(performance.now() - started)} ms · Reply: “${result.reply.slice(0, 180)}”`);
       setProducts(result.products); setPrices(result.prices);
       setMessage("");
     } catch (error) {
       setAssistantMessages((msgs) => [...msgs, { role: "assistant", text: t.assistantFailed }]);
       traceModel("Local Assistant · rules", "error", error instanceof Error ? error.message : t.assistantFailed);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -864,7 +894,7 @@ export default function ZipFrontend() {
           <section className={`${tab === "chat" ? "flex animate-in fade-in slide-in-from-bottom-1" : "hidden"} h-full min-h-0 flex-col`} aria-label={t.messages}>
             {!packReady && <div className="mb-2 flex items-center justify-between gap-2 rounded-xl bg-warning-soft p-2 text-xs font-bold text-warning-foreground"><span>Offline translation needs the {localLanguage} model.</span><Button type="button" size="sm" onClick={() => void downloadPack()} disabled={packBusy}>{packBusy ? "Loading…" : "Download"}</Button></div>}
             {packNotice && <p role="status" className="mb-2 text-xs font-semibold">{packNotice}</p>}
-            {(() => { const thread = guest.openId ? guest.threads.find((x) => x.id === guest.openId) : null; return thread ? <Conversation thread={thread} onBack={() => guest.open(null)} onSend={(text) => guest.send(thread.id, text)} language={localLanguage} packReady={packReady} onModelEvent={traceModel} onDraft={async (th) => draftReply(th.messages.filter((m) => m.from === "guest").at(-1)?.text ?? "", await getProfile() ?? blankProfile(languageCode(localLanguage)), await listPrices())} copy={{ placeholder: t.replyPlaceholder, typing: t.typing, back: t.back, empty: "", translate: t.translate, original: t.hideTranslation, draft: t.draftReply, noTranslation: t.noTranslation }} /> : <>
+            {(() => { const thread = guest.openId ? guest.threads.find((x) => x.id === guest.openId) : null; return thread ? <Conversation thread={thread} onBack={() => guest.open(null)} onSend={(text) => guest.send(thread.id, text)} language={localLanguage} packReady={packReady} latencyMultiplier={deviceProfile.factor} onModelEvent={traceModel} onDraft={async (th) => { await simulateDeviceLatency(450); return draftReply(th.messages.filter((m) => m.from === "guest").at(-1)?.text ?? "", await getProfile() ?? blankProfile(languageCode(localLanguage)), await listPrices()); }} copy={{ placeholder: t.replyPlaceholder, typing: t.typing, back: t.back, empty: "", translate: t.translate, original: t.hideTranslation, draft: t.draftReply, noTranslation: t.noTranslation }} /> : <>
               <p className="text-xs font-semibold text-muted-foreground">Demo messages. Replies are copied for your messaging app.</p>
               {guest.unreadTotal > 0 && <div className="flex justify-end"><span className="rounded-full bg-primary-soft px-3 py-1 text-xs font-bold text-primary">{guest.unreadTotal} {t.unread}</span></div>}
               <ThreadList threads={guest.threads} onOpen={guest.open} />
@@ -936,8 +966,23 @@ export default function ZipFrontend() {
         </main>
         {onboardingComplete && <BottomNav active={tab} onChange={(nextTab) => { setUtilityView(null); setLanguageOpen(false); setSpeakInputOpen(false); setTextInputOpen(false); if (nextTab === tab) { if (nextTab === "chat") guest.open(null); if (nextTab === "business") setBusinessView("overview"); } setTab(nextTab); }} labels={t} chatUnread={guest.unreadTotal} />}
       </div>
-      <ModelConsole events={modelEvents} online={online} />
+      <div className="hidden h-[min(844px,calc(100dvh-40px))] min-w-0 flex-col gap-3 lg:flex">
+        <DeviceSimulator level={deviceLevel} profile={deviceProfile} onChange={selectDevice} />
+        <ModelConsole events={modelEvents} online={online} />
+      </div>
     </div>
+  );
+}
+
+function DeviceSimulator({ level, profile, onChange }: { level: number; profile: DeviceProfile; onChange: (level: number) => void }) {
+  return (
+    <section className="shrink-0 rounded-[1.25rem] border border-border bg-card px-4 py-3 shadow-card" aria-labelledby="device-simulator-title">
+      <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-primary-soft text-primary"><Smartphone className="size-5" /></span><div><h2 id="device-simulator-title" className="text-sm font-bold">Handy-Leistung simulieren</h2><p className="text-xs font-semibold text-muted-foreground">{profile.name} · {profile.detail}</p></div><span className="ml-auto rounded-full bg-accent-soft px-2.5 py-1 text-xs font-bold text-accent">{profile.factor}×</span></div>
+      <input type="range" min="0" max="2" step="1" value={level} onChange={(event) => onChange(Number(event.target.value))} aria-label="Handy-Leistung" className="mt-3 h-2 w-full cursor-pointer accent-primary" />
+      <div className="mt-1 flex justify-between text-[0.65rem] font-bold text-muted-foreground"><span>Einsteiger</span><span>Mittelklasse</span><span>High-End</span></div>
+      <div className="mt-2 grid grid-cols-3 gap-2 text-center text-[0.65rem]"><span className="rounded-lg bg-muted px-2 py-1"><b className="block text-foreground">Whisper {profile.whisper}</b>Echtzeit</span><span className="rounded-lg bg-muted px-2 py-1"><b className="block text-foreground">OPUS {profile.opus}</b>Text</span><span className="rounded-lg bg-muted px-2 py-1"><b className="block text-foreground">Reply {profile.reply}</b>Antwort</span></div>
+      <p className="mt-2 text-[0.65rem] font-medium text-muted-foreground">Simulierte Geräteklasse; echte Laufzeit steht im Terminal.</p>
+    </section>
   );
 }
 
@@ -953,7 +998,7 @@ function ModelConsole({ events, online }: { events: ModelEvent[]; online: boolea
     error: "text-red-300",
   };
   return (
-    <aside className="hidden h-[min(844px,calc(100dvh-40px))] min-w-0 flex-col overflow-hidden rounded-[1.5rem] border border-emerald-950 bg-[#07110f] font-mono text-slate-100 shadow-app lg:flex" aria-label="Local model runtime console">
+    <aside className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[1.5rem] border border-emerald-950 bg-[#07110f] font-mono text-slate-100 shadow-app" aria-label="Local model runtime console">
       <div className="flex h-14 shrink-0 items-center gap-2 border-b border-emerald-950 bg-[#0a1714] px-4">
         <span className="size-2.5 rounded-full bg-red-400" /><span className="size-2.5 rounded-full bg-amber-300" /><span className="size-2.5 rounded-full bg-emerald-400" />
         <span className="ml-2 truncate text-xs font-semibold text-slate-300">lokalpingu://model-runtime</span>
