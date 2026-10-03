@@ -28,6 +28,7 @@ export default defineConfig({
       ]
     },
     workbox: {
+      cleanupOutdatedCaches: true,
       globIgnores: ['**/models/**'],
       maximumFileSizeToCacheInBytes: 25 * 1024 * 1024
     }
