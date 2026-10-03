@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.playwright-cli/
+.venv-model/
+.cache/
+tmp/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+*.zip
+public/models/
+public/wasm/
+
