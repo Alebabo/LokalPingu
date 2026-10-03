@@ -5,6 +5,7 @@ import { PenguinP } from "@/components/PenguinP";
 import { translateEnglish } from "../local-translation";
 import { languages } from "../languages";
 import { type Draft } from "../reply";
+import { type ModelEventKind } from "../ZipFrontend";
 
 
 export type ChatMessage = { id: string; from: "guest" | "me"; text: string; time: string; translation?: string };
@@ -85,7 +86,7 @@ export function ThreadList({ threads, onOpen }: { threads: Thread[]; onOpen: (id
   );
 }
 
-export function Conversation({ thread, onBack, onSend, copy, language, packReady, onDraft }: { thread: Thread; onBack: () => void; onSend: (text: string) => void; copy: Copy; language: string; packReady: boolean; onDraft: (thread: Thread) => Promise<Draft> }) {
+export function Conversation({ thread, onBack, onSend, copy, language, packReady, onDraft, onModelEvent }: { thread: Thread; onBack: () => void; onSend: (text: string) => void; copy: Copy; language: string; packReady: boolean; onDraft: (thread: Thread) => Promise<Draft>; onModelEvent?: (model: string, kind: ModelEventKind, message: string) => void }) {
   const [draft, setDraft] = useState("");
   const [draftLocal, setDraftLocal] = useState("");
   const [draftBusy, setDraftBusy] = useState(false);
@@ -110,8 +111,11 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
     }
   };
   const createDraft = async () => {
+    const guestMessage = thread.messages.filter((message) => message.from === "guest").at(-1)?.text ?? "";
+    onModelEvent?.("Local Reply Composer", "run", `Guest input: “${guestMessage.slice(0, 140)}”`);
     try {
       const next = await onDraft(thread);
+      onModelEvent?.("Local Reply Composer", "output", `Draft: “${next.text.slice(0, 180)}”`);
       setPlan(next);
       setDraft(next.text);
       setDraftLocal("");
@@ -119,16 +123,21 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
       if (packReady) await translateDraft(next.text);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Draft failed.");
+      onModelEvent?.("Local Reply Composer", "error", error instanceof Error ? error.message : "Draft failed");
     }
   };
   const translateDraft = async (text: string) => {
     const code = languages.find((item) => item.name === language)?.code;
     if (!packReady || !code || !text.trim()) return;
     setDraftBusy(true);
+    onModelEvent?.(`OPUS-MT English→${language}`, "run", `Draft input: “${text.slice(0, 140)}”`);
     try {
-      setDraftLocal(await translateEnglish(code, text));
+      const translated = await translateEnglish(code, text);
+      setDraftLocal(translated);
+      onModelEvent?.(`OPUS-MT English→${language}`, "output", `Draft output: “${translated.slice(0, 180)}”`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Draft translation failed.");
+      onModelEvent?.(`OPUS-MT English→${language}`, "error", error instanceof Error ? error.message : "Draft translation failed");
     } finally {
       setDraftBusy(false);
     }
@@ -136,16 +145,25 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
   const toggleTranslation = async (message: ChatMessage) => {
     if (shown[message.id]) { setShown((items) => ({ ...items, [message.id]: false })); return; }
     setShown((items) => ({ ...items, [message.id]: true }));
-    if (message.translation) { setTranslations((items) => ({ ...items, [message.id]: message.translation! })); return; }
+    if (message.translation) {
+      setTranslations((items) => ({ ...items, [message.id]: message.translation! }));
+      onModelEvent?.("Demo Translation", "output", `Stored translation: “${message.translation.slice(0, 180)}”`);
+      return;
+    }
     if (!packReady) { setTranslations((items) => ({ ...items, [message.id]: "Download this language's offline model in Settings first." })); return; }
     const code = languages.find((item) => item.name === language)?.code;
     if (!code) return;
     setTranslating((items) => ({ ...items, [message.id]: true }));
+    onModelEvent?.(`OPUS-MT English→${language}`, "run", `Chat input: “${message.text.slice(0, 140)}”`);
     try {
       const translated = await translateEnglish(code, message.text);
       setTranslations((items) => ({ ...items, [message.id]: translated }));
+      onModelEvent?.(`OPUS-MT English→${language}`, "output", `Chat output: “${translated.slice(0, 180)}”`);
     }
-    catch { setTranslations((items) => ({ ...items, [message.id]: copy.noTranslation ?? "No offline translation available." })); }
+    catch (error) {
+      setTranslations((items) => ({ ...items, [message.id]: copy.noTranslation ?? "No offline translation available." }));
+      onModelEvent?.(`OPUS-MT English→${language}`, "error", error instanceof Error ? error.message : "Translation failed");
+    }
     finally { setTranslating((items) => ({ ...items, [message.id]: false })); }
   };
 

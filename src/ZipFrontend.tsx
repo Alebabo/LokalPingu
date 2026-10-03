@@ -47,6 +47,8 @@ type Tab = "assistant" | "speak" | "chat" | "business";
 type BusinessView = "overview" | "kpi" | "context" | "prices" | "facts" | "interactions";
 type AppLanguage = keyof typeof UI;
 type UtilityView = "notifications" | "settings" | null;
+export type ModelEventKind = "info" | "run" | "output" | "ready" | "error";
+export type ModelEvent = { id: string; time: string; model: string; kind: ModelEventKind; message: string };
 const LOCAL_PRODUCTS_KEY = "lokalpingu-local-products";
 const LOCAL_PRICES_KEY = "lokalpingu-local-prices";
 const CONNECTORS: { name: string; icon: SimpleIcon }[] = [
@@ -383,8 +385,17 @@ export default function ZipFrontend() {
   const [priceLabel, setPriceLabel] = useState("");
   const [priceValue, setPriceValue] = useState("");
   const [assistantMessages, setAssistantMessages] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
+  const [modelEvents, setModelEvents] = useState<ModelEvent[]>(() => [
+    { id: "runtime", time: new Date().toLocaleTimeString([], { hour12: false }), model: "Runtime", kind: "ready", message: "WASM workers ready · local inference only" },
+    { id: "facts", time: new Date().toLocaleTimeString([], { hour12: false }), model: "Business Memory", kind: "ready", message: "Noor fact sheet and 4 verified offers loaded" },
+  ]);
   const guest = useGuestThreads();
   const t = UI[appLanguage];
+
+  function traceModel(model: string, kind: ModelEventKind, message: string) {
+    const event: ModelEvent = { id: crypto.randomUUID(), time: new Date().toLocaleTimeString([], { hour12: false }), model, kind, message };
+    setModelEvents((events) => [...events.slice(-39), event]);
+  }
 
   useEffect(() => {
     const updateOnline = () => setOnline(navigator.onLine);
@@ -439,6 +450,7 @@ export default function ZipFrontend() {
     const selected = localLanguage;
     setPackBusy(true);
     setPackNotice(`Loading ${selected} model from this app…`);
+    traceModel("OPUS-MT", "run", `Loading English → ${selected} language pack`);
     try {
       if (navigator.storage?.persist) await navigator.storage.persist();
       await installLanguagePack(languageCode(selected));
@@ -447,8 +459,10 @@ export default function ZipFrontend() {
         setPackReady(ready);
         setPackNotice(ready ? "Offline model ready on this device." : "Model check failed. Try again.");
       }
+      traceModel("OPUS-MT", ready ? "ready" : "error", ready ? `English → ${selected} ready offline` : `English → ${selected} model check failed`);
     } catch (error) {
       if (selected === localLanguageRef.current) setPackNotice(error instanceof Error ? error.message : "Model download failed.");
+      traceModel("OPUS-MT", "error", error instanceof Error ? error.message : "Model download failed");
     } finally {
       setPackBusy(false);
     }
@@ -458,6 +472,7 @@ export default function ZipFrontend() {
     const selected = localLanguage;
     setPackBusy(true);
     setPackNotice(`Loading ${selected} to English model from this app…`);
+    traceModel("OPUS-MT", "run", `Loading ${selected} → English language pack`);
     try {
       if (navigator.storage?.persist) await navigator.storage.persist();
       await installReverseLanguagePack(languageCode(selected));
@@ -466,8 +481,10 @@ export default function ZipFrontend() {
         setReversePackReady(ready);
         setPackNotice(ready ? "Offline model ready on this device." : "Model check failed. Try again.");
       }
+      traceModel("OPUS-MT", ready ? "ready" : "error", ready ? `${selected} → English ready offline` : `${selected} → English model check failed`);
     } catch (error) {
       if (selected === localLanguageRef.current) setPackNotice(error instanceof Error ? error.message : "Model download failed.");
+      traceModel("OPUS-MT", "error", error instanceof Error ? error.message : "Model download failed");
     } finally {
       setPackBusy(false);
     }
@@ -479,16 +496,20 @@ export default function ZipFrontend() {
     const selectedPackReady = toEnglish ? reversePackReady : packReady;
     if (!selectedPackReady) { setSpeakNotice("Download the selected offline model first."); return; }
     const selected = localLanguage;
+    const modelLabel = `OPUS-MT ${toEnglish ? `${selected}→English` : `English→${selected}`}`;
     setSpeakBusy(true);
     setSpeakNotice("");
+    traceModel(modelLabel, "run", `Input: “${speakText.trim().slice(0, 140)}”`);
     try {
       const result = toEnglish ? await translateToEnglish(languageCode(selected), speakText.trim()) : await translateEnglish(languageCode(selected), speakText.trim());
       if (selected !== localLanguageRef.current) return;
       setSpeakTranslation(result);
+      traceModel(modelLabel, "output", `Output: “${result.slice(0, 180)}”`);
       const normalized = (value: string) => value.replace(/[^\p{L}\p{N}]+/gu, " ").trim().toLowerCase();
       setSpeakNotice(normalized(result) === normalized(speakText) ? "Translation repeated the input. Check with a person." : "Check price, dates and allergies against the original message.");
     } catch (error) {
       setSpeakNotice(error instanceof Error ? error.message : "Translation failed.");
+      traceModel(modelLabel, "error", error instanceof Error ? error.message : "Translation failed");
     } finally {
       setSpeakBusy(false);
     }
@@ -497,14 +518,17 @@ export default function ZipFrontend() {
   async function downloadSpeechPack() {
     setSpeechModelBusy(true);
     setSpeakNotice("Loading Whisper Tiny speech model from this app…");
+    traceModel("Whisper Tiny q8", "run", "Loading local speech model");
     try {
       if (navigator.storage?.persist) await navigator.storage.persist();
       await installSpeechModel();
       const ready = await hasSpeechModel();
       setSpeechReady(ready);
       setSpeakNotice(ready ? "Offline speech model ready on this device." : "Speech model check failed. Try again.");
+      traceModel("Whisper Tiny q8", ready ? "ready" : "error", ready ? "Speech recognition ready offline" : "Speech model check failed");
     } catch (error) {
       setSpeakNotice(error instanceof Error ? error.message : "Speech model download failed.");
+      traceModel("Whisper Tiny q8", "error", error instanceof Error ? error.message : "Speech model download failed");
     } finally {
       setSpeechModelBusy(false);
     }
@@ -522,10 +546,12 @@ export default function ZipFrontend() {
   async function processVoiceRecording(blob: Blob, inputLanguage: string) {
     setSpeakBusy(true);
     setSpeakNotice("Transcribing on this device…");
+    traceModel("Whisper Tiny q8", "run", `Transcribing ${inputLanguage} audio on device`);
     try {
       const audio = await decodeRecordedAudio(blob);
       if (audio.length < 3_200) throw new Error("Recording was too short. Speak for at least one second.");
       const transcript = await transcribeAudio(audio, whisperLanguage(inputLanguage));
+      traceModel("Whisper Tiny q8", "output", `Transcript: “${transcript.slice(0, 180)}”`);
       setSpeakText(transcript);
       setSpeakTranslation("");
       const toEnglish = inputLanguage !== "English";
@@ -535,13 +561,17 @@ export default function ZipFrontend() {
         return;
       }
       setSpeakNotice("Translating on this device…");
+      const modelLabel = `OPUS-MT ${toEnglish ? `${localLanguage}→English` : `English→${localLanguage}`}`;
+      traceModel(modelLabel, "run", `Input: “${transcript.slice(0, 140)}”`);
       const translated = toEnglish
         ? await translateToEnglish(languageCode(localLanguage), transcript)
         : await translateEnglish(languageCode(localLanguage), transcript);
       setSpeakTranslation(translated);
+      traceModel(modelLabel, "output", `Output: “${translated.slice(0, 180)}”`);
       setSpeakNotice("Speech and translation stayed on this device.");
     } catch (error) {
       setSpeakNotice(error instanceof Error ? error.message : "Speech recognition failed.");
+      traceModel("Voice pipeline", "error", error instanceof Error ? error.message : "Speech recognition failed");
     } finally {
       setSpeakBusy(false);
     }
@@ -727,18 +757,23 @@ export default function ZipFrontend() {
     const text = (override ?? message).trim();
     if (!text) return;
     setAssistantMessages((msgs) => [...msgs, { role: "user", text }]);
+    traceModel("Local Assistant · rules", "run", `Input: “${text.slice(0, 140)}”`);
     try {
       const [savedProducts, savedPrices] = await Promise.all([listProducts(), listPrices()]);
       const result = runLocalAssistant(text, appLanguage, savedProducts, savedPrices, businessName, currency);
       if (result.products !== savedProducts || result.prices !== savedPrices) await replaceCatalog(result.products, result.prices);
       setAssistantMessages((msgs) => [...msgs, { role: "assistant", text: result.reply }]);
+      traceModel("Local Assistant · rules", "output", `Reply: “${result.reply.slice(0, 180)}”`);
       setProducts(result.products); setPrices(result.prices);
       setMessage("");
-    } catch { setAssistantMessages((msgs) => [...msgs, { role: "assistant", text: t.assistantFailed }]); }
+    } catch (error) {
+      setAssistantMessages((msgs) => [...msgs, { role: "assistant", text: t.assistantFailed }]);
+      traceModel("Local Assistant · rules", "error", error instanceof Error ? error.message : t.assistantFailed);
+    }
   }
 
   return (
-    <div className="min-h-dvh bg-app-shell text-foreground sm:grid sm:place-items-center sm:p-5">
+    <div className="min-h-dvh bg-app-shell text-foreground sm:grid sm:place-content-center sm:p-5 lg:grid-cols-[430px_minmax(420px,560px)] lg:gap-6">
       <div className="relative mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden bg-background sm:h-[min(844px,calc(100dvh-40px))] sm:rounded-[2rem] sm:border sm:border-border sm:shadow-app">
         {onboardingComplete && <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">
           <div className="flex min-w-0 items-center gap-2.5">
@@ -829,7 +864,7 @@ export default function ZipFrontend() {
           <section className={`${tab === "chat" ? "flex animate-in fade-in slide-in-from-bottom-1" : "hidden"} h-full min-h-0 flex-col`} aria-label={t.messages}>
             {!packReady && <div className="mb-2 flex items-center justify-between gap-2 rounded-xl bg-warning-soft p-2 text-xs font-bold text-warning-foreground"><span>Offline translation needs the {localLanguage} model.</span><Button type="button" size="sm" onClick={() => void downloadPack()} disabled={packBusy}>{packBusy ? "Loading…" : "Download"}</Button></div>}
             {packNotice && <p role="status" className="mb-2 text-xs font-semibold">{packNotice}</p>}
-            {(() => { const thread = guest.openId ? guest.threads.find((x) => x.id === guest.openId) : null; return thread ? <Conversation thread={thread} onBack={() => guest.open(null)} onSend={(text) => guest.send(thread.id, text)} language={localLanguage} packReady={packReady} onDraft={async (th) => draftReply(th.messages.filter((m) => m.from === "guest").at(-1)?.text ?? "", await getProfile() ?? blankProfile(languageCode(localLanguage)), await listPrices())} copy={{ placeholder: t.replyPlaceholder, typing: t.typing, back: t.back, empty: "", translate: t.translate, original: t.hideTranslation, draft: t.draftReply, noTranslation: t.noTranslation }} /> : <>
+            {(() => { const thread = guest.openId ? guest.threads.find((x) => x.id === guest.openId) : null; return thread ? <Conversation thread={thread} onBack={() => guest.open(null)} onSend={(text) => guest.send(thread.id, text)} language={localLanguage} packReady={packReady} onModelEvent={traceModel} onDraft={async (th) => draftReply(th.messages.filter((m) => m.from === "guest").at(-1)?.text ?? "", await getProfile() ?? blankProfile(languageCode(localLanguage)), await listPrices())} copy={{ placeholder: t.replyPlaceholder, typing: t.typing, back: t.back, empty: "", translate: t.translate, original: t.hideTranslation, draft: t.draftReply, noTranslation: t.noTranslation }} /> : <>
               <p className="text-xs font-semibold text-muted-foreground">Demo messages. Replies are copied for your messaging app.</p>
               {guest.unreadTotal > 0 && <div className="flex justify-end"><span className="rounded-full bg-primary-soft px-3 py-1 text-xs font-bold text-primary">{guest.unreadTotal} {t.unread}</span></div>}
               <ThreadList threads={guest.threads} onOpen={guest.open} />
@@ -901,7 +936,42 @@ export default function ZipFrontend() {
         </main>
         {onboardingComplete && <BottomNav active={tab} onChange={(nextTab) => { setUtilityView(null); setLanguageOpen(false); setSpeakInputOpen(false); setTextInputOpen(false); if (nextTab === tab) { if (nextTab === "chat") guest.open(null); if (nextTab === "business") setBusinessView("overview"); } setTab(nextTab); }} labels={t} chatUnread={guest.unreadTotal} />}
       </div>
+      <ModelConsole events={modelEvents} online={online} />
     </div>
+  );
+}
+
+function ModelConsole({ events, online }: { events: ModelEvent[]; online: boolean }) {
+  const endRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [events.length]);
+  const latest = events.at(-1);
+  const colors: Record<ModelEventKind, string> = {
+    info: "text-cyan-300",
+    run: "text-amber-300",
+    output: "text-lime-300",
+    ready: "text-emerald-300",
+    error: "text-red-300",
+  };
+  return (
+    <aside className="hidden h-[min(844px,calc(100dvh-40px))] min-w-0 flex-col overflow-hidden rounded-[1.5rem] border border-emerald-950 bg-[#07110f] font-mono text-slate-100 shadow-app lg:flex" aria-label="Local model runtime console">
+      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-emerald-950 bg-[#0a1714] px-4">
+        <span className="size-2.5 rounded-full bg-red-400" /><span className="size-2.5 rounded-full bg-amber-300" /><span className="size-2.5 rounded-full bg-emerald-400" />
+        <span className="ml-2 truncate text-xs font-semibold text-slate-300">lokalpingu://model-runtime</span>
+        <span className="ml-auto rounded border border-emerald-700/60 bg-emerald-900/30 px-2 py-1 text-[0.65rem] font-bold text-emerald-300">LOCAL ONLY</span>
+      </div>
+      <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-emerald-950 px-4 py-3">
+        <div className="min-w-0"><p className="text-[0.65rem] uppercase tracking-[0.18em] text-slate-500">Active model</p><p className="truncate text-sm font-bold text-emerald-300">{latest?.model ?? "Runtime"}</p></div>
+        <span className={`flex items-center gap-1.5 text-[0.65rem] font-bold ${online ? "text-cyan-300" : "text-amber-300"}`}><span className={`size-2 rounded-full ${online ? "bg-cyan-300" : "bg-amber-300"}`} />{online ? "ONLINE" : "OFFLINE"}</span>
+      </div>
+      <div role="log" aria-live="polite" className="min-h-0 flex-1 overflow-y-auto px-4 py-4 text-xs leading-relaxed [scrollbar-color:#14532d_transparent]">
+        <p className="mb-4 text-slate-500">$ watch --models --local --verbose</p>
+        <div className="space-y-3">
+          {events.map((event) => <div key={event.id} className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2"><span className="text-slate-600">{event.time}</span><p className="min-w-0 break-words"><span className="text-slate-400">[{event.model}]</span> <span className={`font-bold ${colors[event.kind]}`}>{event.kind.toUpperCase()}</span><br /><span className="text-slate-300">{event.message}</span></p></div>)}
+          <div ref={endRef} />
+        </div>
+      </div>
+      <div className="shrink-0 border-t border-emerald-950 bg-[#0a1714] px-4 py-3 text-[0.65rem] text-slate-500">No cloud inference · audio and business facts stay on device</div>
+    </aside>
   );
 }
 
