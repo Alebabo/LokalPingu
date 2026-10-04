@@ -52,9 +52,9 @@ export type ModelEventKind = "info" | "run" | "output" | "ready" | "error";
 export type ModelEvent = { id: string; time: string; model: string; kind: ModelEventKind; message: string };
 type DeviceProfile = { name: string; detail: string; factor: number; whisper: string; opus: string; reply: string };
 const DEVICE_PROFILES: DeviceProfile[] = [
-  { name: "Einsteiger", detail: "4 GB · 4 Kerne", factor: 2, whisper: "0,4×", opus: "~1,6 s", reply: "~0,9 s" },
-  { name: "Mittelklasse", detail: "6 GB · 8 Kerne", factor: 1, whisper: "0,8×", opus: "~0,8 s", reply: "~0,45 s" },
-  { name: "High-End", detail: "12 GB · NPU", factor: 0.45, whisper: "1,6×", opus: "~0,35 s", reply: "~0,2 s" },
+  { name: "Entry-level", detail: "4 GB · 4 cores", factor: 2, whisper: "0.4×", opus: "~1.6 s", reply: "~0.9 s" },
+  { name: "Mid-range", detail: "6 GB · 8 cores", factor: 1, whisper: "0.8×", opus: "~0.8 s", reply: "~0.45 s" },
+  { name: "High-end", detail: "12 GB · NPU", factor: 0.45, whisper: "1.6×", opus: "~0.35 s", reply: "~0.2 s" },
 ];
 const LOCAL_PRODUCTS_KEY = "lokalpingu-local-products";
 const LOCAL_PRICES_KEY = "lokalpingu-local-prices";
@@ -403,6 +403,7 @@ export default function ZipFrontend() {
   const [priceValue, setPriceValue] = useState("");
   const [assistantMessages, setAssistantMessages] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
   const [deviceLevel, setDeviceLevel] = useState(1);
+  const [modelToolsOpen, setModelToolsOpen] = useState(false);
   const [modelEvents, setModelEvents] = useState<ModelEvent[]>(() => [
     { id: "runtime", time: new Date().toLocaleTimeString([], { hour12: false }), model: "Runtime", kind: "ready", message: "WASM workers ready · local inference only" },
     { id: "facts", time: new Date().toLocaleTimeString([], { hour12: false }), model: "Business Memory", kind: "ready", message: "Noor fact sheet and 4 verified offers loaded" },
@@ -813,7 +814,7 @@ export default function ZipFrontend() {
   }
 
   return (
-    <div className="min-h-dvh bg-app-shell text-foreground sm:grid sm:place-content-center sm:p-5 lg:grid-cols-[430px_minmax(420px,560px)] lg:gap-6">
+    <div className={`min-h-dvh bg-app-shell text-foreground sm:grid sm:place-content-center sm:p-5 lg:gap-6 ${modelToolsOpen ? "lg:grid-cols-[430px_minmax(420px,560px)]" : "lg:grid-cols-[430px_3.5rem]"}`}>
       <div className="relative mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden bg-background sm:h-[min(844px,calc(100dvh-40px))] sm:rounded-[2rem] sm:border sm:border-border sm:shadow-app">
         {onboardingComplete && <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-5 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">
           <div className="flex min-w-0 items-center gap-2.5">
@@ -976,22 +977,24 @@ export default function ZipFrontend() {
         </main>
         {onboardingComplete && <BottomNav active={tab} onChange={(nextTab) => { setUtilityView(null); setLanguageOpen(false); setSpeakInputOpen(false); setTextInputOpen(false); if (nextTab === tab) { if (nextTab === "chat") guest.open(null); if (nextTab === "business") setBusinessView("overview"); } setTab(nextTab); }} labels={t} chatUnread={guest.unreadTotal} />}
       </div>
-      <div className="hidden h-[min(844px,calc(100dvh-40px))] min-w-0 flex-col gap-3 lg:flex">
-        <DeviceSimulator level={deviceLevel} profile={deviceProfile} onChange={selectDevice} />
-        <ModelConsole events={modelEvents} online={online} />
+      <div className={`hidden h-[min(844px,calc(100dvh-40px))] min-w-0 flex-col lg:flex ${modelToolsOpen ? "gap-3" : "items-start"}`}>
+        {!modelToolsOpen ? <button type="button" onClick={() => setModelToolsOpen(true)} aria-expanded="false" aria-label="Show model tools" title="Show model tools" className="grid size-14 place-items-center rounded-2xl border border-border bg-card text-primary shadow-card transition-transform hover:scale-105 hover:bg-primary-soft"><Maximize2 className="size-5" /></button> : <>
+          <DeviceSimulator level={deviceLevel} profile={deviceProfile} onChange={selectDevice} onClose={() => setModelToolsOpen(false)} />
+          <ModelConsole events={modelEvents} online={online} />
+        </>}
       </div>
     </div>
   );
 }
 
-function DeviceSimulator({ level, profile, onChange }: { level: number; profile: DeviceProfile; onChange: (level: number) => void }) {
+function DeviceSimulator({ level, profile, onChange, onClose }: { level: number; profile: DeviceProfile; onChange: (level: number) => void; onClose: () => void }) {
   return (
     <section className="shrink-0 rounded-[1.25rem] border border-border bg-card px-4 py-3 shadow-card" aria-labelledby="device-simulator-title">
-      <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-primary-soft text-primary"><Smartphone className="size-5" /></span><div><h2 id="device-simulator-title" className="text-sm font-bold">Handy-Leistung simulieren</h2><p className="text-xs font-semibold text-muted-foreground">{profile.name} · {profile.detail}</p></div><span className="ml-auto rounded-full bg-accent-soft px-2.5 py-1 text-xs font-bold text-accent">{profile.factor}×</span></div>
-      <input type="range" min="0" max="2" step="1" value={level} onChange={(event) => onChange(Number(event.target.value))} aria-label="Handy-Leistung" className="mt-3 h-2 w-full cursor-pointer accent-primary" />
-      <div className="mt-1 flex justify-between text-[0.65rem] font-bold text-muted-foreground"><span>Einsteiger</span><span>Mittelklasse</span><span>High-End</span></div>
-      <div className="mt-2 grid grid-cols-3 gap-2 text-center text-[0.65rem]"><span className="rounded-lg bg-muted px-2 py-1"><b className="block text-foreground">Whisper {profile.whisper}</b>Echtzeit</span><span className="rounded-lg bg-muted px-2 py-1"><b className="block text-foreground">OPUS {profile.opus}</b>Text</span><span className="rounded-lg bg-muted px-2 py-1"><b className="block text-foreground">Reply {profile.reply}</b>Antwort</span></div>
-      <p className="mt-2 text-[0.65rem] font-medium text-muted-foreground">Simulierte Geräteklasse; echte Laufzeit steht im Terminal.</p>
+      <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-primary-soft text-primary"><Smartphone className="size-5" /></span><div><h2 id="device-simulator-title" className="text-sm font-bold">Simulate phone performance</h2><p className="text-xs font-semibold text-muted-foreground">{profile.name} · {profile.detail}</p></div><span className="ml-auto rounded-full bg-accent-soft px-2.5 py-1 text-xs font-bold text-accent">{profile.factor}×</span><button type="button" onClick={onClose} aria-label="Hide model tools" title="Hide model tools" className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"><Minimize2 className="size-4" /></button></div>
+      <input type="range" min="0" max="2" step="1" value={level} onChange={(event) => onChange(Number(event.target.value))} aria-label="Phone performance" className="mt-3 h-2 w-full cursor-pointer accent-primary" />
+      <div className="mt-1 flex justify-between text-[0.65rem] font-bold text-muted-foreground"><span>Entry-level</span><span>Mid-range</span><span>High-end</span></div>
+      <div className="mt-2 grid grid-cols-3 gap-2 text-center text-[0.65rem]"><span className="rounded-lg bg-muted px-2 py-1"><b className="block text-foreground">Whisper {profile.whisper}</b>real time</span><span className="rounded-lg bg-muted px-2 py-1"><b className="block text-foreground">OPUS {profile.opus}</b>text</span><span className="rounded-lg bg-muted px-2 py-1"><b className="block text-foreground">Reply {profile.reply}</b>response</span></div>
+      <p className="mt-2 text-[0.65rem] font-medium text-muted-foreground">Simulated device class; actual runtime appears in the terminal.</p>
     </section>
   );
 }
@@ -1015,7 +1018,7 @@ function ModelConsole({ events, online }: { events: ModelEvent[]; online: boolea
         <span className="ml-2 truncate text-xs font-semibold text-slate-300">lokalpingu://model-runtime</span>
         {collapsed && <span className="min-w-0 truncate text-[0.65rem] text-emerald-300">{latest?.model}</span>}
         <span className="ml-auto rounded border border-emerald-700/60 bg-emerald-900/30 px-2 py-1 text-[0.65rem] font-bold text-emerald-300">LOCAL ONLY</span>
-        <button type="button" onClick={() => setCollapsed((value) => !value)} aria-expanded={!collapsed} aria-label={collapsed ? "Terminal ausklappen" : "Terminal einklappen"} title={collapsed ? "Terminal ausklappen" : "Terminal einklappen"} className="grid size-8 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-emerald-950 hover:text-emerald-300"><ChevronDown className={`size-4 transition-transform ${collapsed ? "" : "rotate-180"}`} /></button>
+        <button type="button" onClick={() => setCollapsed((value) => !value)} aria-expanded={!collapsed} aria-label={collapsed ? "Expand terminal" : "Collapse terminal"} title={collapsed ? "Expand terminal" : "Collapse terminal"} className="grid size-8 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-emerald-950 hover:text-emerald-300"><ChevronDown className={`size-4 transition-transform ${collapsed ? "" : "rotate-180"}`} /></button>
       </div>
       {!collapsed && <><div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-emerald-950 px-4 py-3">
         <div className="min-w-0"><p className="text-[0.65rem] uppercase tracking-[0.18em] text-slate-500">Active model</p><p className="truncate text-sm font-bold text-emerald-300">{latest?.model ?? "Runtime"}</p></div>
