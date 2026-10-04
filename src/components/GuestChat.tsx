@@ -188,7 +188,7 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
                 {m.from === "guest" && shown[m.id] && <p className="mt-1.5 border-t-2 border-border pt-1.5 text-accent">{translating[m.id] ? "…" : (translations[m.id] ?? copy.noTranslation ?? "No offline translation available.")}</p>}
                 <span className={`mt-0.5 flex items-center justify-end gap-1 text-[0.65rem] ${m.from === "me" ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{m.time}{m.from === "me" && <Copy className="size-3" />}</span>
               </div>
-              {m.from === "guest" && thread.language === "English" && <Button type="button" size="icon" variant="ghost" onClick={() => void toggleTranslation(m)} aria-label={shown[m.id] ? (copy.original ?? "Hide translation") : (copy.translate ?? "Translate")} title={shown[m.id] ? (copy.original ?? "Hide translation") : (copy.translate ?? "Translate")} className={`size-9 shrink-0 rounded-xl ${shown[m.id] ? "bg-accent-soft text-accent" : "text-muted-foreground"}`}><Languages className="size-4" /></Button>}
+              {m.from === "guest" && <Button type="button" size="icon" variant="ghost" onClick={() => void toggleTranslation(m)} aria-label={shown[m.id] ? (copy.original ?? "Hide translation") : (copy.translate ?? "Translate")} title={shown[m.id] ? (copy.original ?? "Hide translation") : (copy.translate ?? "Translate")} className={`size-9 shrink-0 rounded-xl ${shown[m.id] ? "bg-accent-soft text-accent" : "text-muted-foreground"}`}><Languages className="size-4" /></Button>}
             </div>
           </div>
         ))}
