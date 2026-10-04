@@ -4,3 +4,4 @@ import penguinP from "../assets/penguin-p.png";
 export function PenguinP({ className = "" }: { className?: string }) {
   return <img src={penguinP} alt="" aria-hidden="true" className={className} draggable={false} />;
 }
+
