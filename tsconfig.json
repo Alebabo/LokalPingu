@@ -4,6 +4,8 @@
     "lib": ["ES2022", "DOM", "WebWorker"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
     "baseUrl": ".",
     "paths": { "@/*": ["src/*"] },
     "jsx": "react-jsx",

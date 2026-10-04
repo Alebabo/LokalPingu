@@ -14,6 +14,12 @@ const worker = new Worker(new URL('./speech.worker.ts', import.meta.url), { type
 const pending = new Map<number, Pending>();
 let requestId = 0;
 
+function rejectPending(message: string) {
+  const error = new Error(message);
+  for (const job of pending.values()) job.reject(error);
+  pending.clear();
+}
+
 worker.onmessage = (event: MessageEvent<{ requestId: number; type: 'progress' | 'done' | 'error'; result?: unknown; error?: string }>) => {
   const message = event.data;
   if (message.type === 'progress') return;
@@ -23,6 +29,8 @@ worker.onmessage = (event: MessageEvent<{ requestId: number; type: 'progress' | 
   if (message.type === 'error') job.reject(new Error(message.error ?? 'Speech recognition failed.'));
   else job.resolve(message.result);
 };
+worker.onerror = () => rejectPending('Speech worker failed. Reload the app and try again.');
+worker.onmessageerror = () => rejectPending('Speech worker returned unreadable data.');
 
 function request(type: 'install' | 'transcribe', audio?: Float32Array, language?: string): Promise<unknown> {
   const id = ++requestId;

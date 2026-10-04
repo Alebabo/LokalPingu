@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Copy, Languages, Maximize2, Minimize2, Send, Sparkles } from "lucide-react";
+import { ArrowLeft, Copy, Languages, Maximize2, Minimize2, RefreshCw, Send, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PenguinP } from "@/components/PenguinP";
 import { translateEnglish } from "../local-translation";
@@ -8,7 +8,7 @@ import { type Draft } from "../reply";
 import { type ModelEventKind } from "../ZipFrontend";
 
 
-export type ChatMessage = { id: string; from: "guest" | "me"; text: string; time: string; translation?: string };
+export type ChatMessage = { id: string; from: "guest" | "me"; text: string; time: string };
 export type Thread = { id: string; name: string; initials: string; tone: string; guests: number; unread: number; language: string; messages: ChatMessage[] };
 
 const now = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -17,11 +17,11 @@ export const INITIAL_THREADS: Thread[] = [
   { id: "lunch-allergy", name: "Priya Shah", initials: "PS", tone: "bg-warning-soft text-warning-foreground", guests: 4, unread: 1, language: "English", messages: [
     { id: "lunch-allergy-1", from: "guest", text: "Hello Noor, can four of us book lunch this Saturday at 1 PM? One guest is vegetarian and has a peanut allergy.", time: "11:24" },
   ] },
-  { id: "family-walk", name: "Claire Martin", initials: "CM", tone: "bg-accent-soft text-accent", guests: 3, unread: 1, language: "Français", messages: [
-    { id: "family-walk-1", from: "guest", text: "Bonjour Noor, la promenade au village convient-elle à un enfant de 7 ans et quel est le prix pour trois personnes ?", time: "11:02" },
+  { id: "family-walk", name: "Claire Martin", initials: "CM", tone: "bg-accent-soft text-accent", guests: 3, unread: 1, language: "English", messages: [
+    { id: "family-walk-1", from: "guest", text: "Hello Noor, is the village walk suitable for a 7-year-old child, and what is the price for three people?", time: "11:02" },
   ] },
-  { id: "coffee-pickup", name: "Lukas Weber", initials: "LW", tone: "bg-primary-soft text-primary", guests: 1, unread: 1, language: "Deutsch", messages: [
-    { id: "coffee-pickup-1", from: "guest", text: "Hallo Noor, kann ich heute zwei Packungen Kaffeebohnen abholen? Kann ich bar oder mit Karte bezahlen?", time: "10:51" },
+  { id: "coffee-pickup", name: "Lukas Weber", initials: "LW", tone: "bg-primary-soft text-primary", guests: 1, unread: 1, language: "English", messages: [
+    { id: "coffee-pickup-1", from: "guest", text: "Hello Noor, can I pick up two bags of coffee beans today? Can I pay with cash or by card?", time: "10:51" },
   ] },
   { id: "market-pickup", name: "Fatima Ali", initials: "FA", tone: "bg-warning-soft text-warning-foreground", guests: 2, unread: 1, language: "English", messages: [
     { id: "market-pickup-1", from: "guest", text: "Could you arrange pickup from Ondera Market tomorrow morning, or should we take the local minibus?", time: "10:18" },
@@ -30,12 +30,12 @@ export const INITIAL_THREADS: Thread[] = [
     { id: "rain-plan-1", from: "guest", text: "We are planning the coffee tour on Friday. Does the tour still happen if it rains?", time: "09:47" },
   ] },
   { id: "coffee", name: "Alex & Jamie", initials: "AJ", tone: "bg-accent-soft text-accent", guests: 2, unread: 0, language: "English", messages: [
-    { id: "coffee-1", from: "guest", text: "Hi Noor! We are 2 people visiting tomorrow around 2 PM. Do you have a coffee tour available and how much does it cost?", translation: "Hujambo Noor! Sisi ni watu 2 tunatembelea kesho mwendo wa saa nane mchana. Je, kuna ziara ya kahawa na inagharimu kiasi gani?", time: "10:40" },
-    { id: "coffee-2", from: "me", text: "Hello! Our Traditional Coffee Tour takes 2 hours and costs $15 per person ($30 total). I will confirm the 2 PM slot before reserving it for you.", time: "10:42" },
+    { id: "coffee-1", from: "guest", text: "Hi Noor! We are 2 people visiting tomorrow around 2 PM. Do you have a coffee tour available and how much does it cost?", time: "10:40" },
+    { id: "coffee-2", from: "me", text: "Hello! Our Traditional Coffee Tasting & Processing Tour takes 2 hours and costs 15 USD / 35,000 TZS per person. For two guests, that is 30 USD / 70,000 TZS. I will confirm the 2 PM slot before reserving it for you.", time: "10:42" },
   ] },
-  { id: "vegetarian", name: "Mara & Jonas", initials: "MJ", tone: "bg-primary-soft text-primary", guests: 2, unread: 0, language: "Deutsch", messages: [
-    { id: "vegetarian-1", from: "guest", text: "Guten Tag! Wir würden gerne die Farm-Tour machen. Gibt es bei dem Mittagessen auch eine vegetarische Option?", translation: "Habari! Tungependa kufanya ziara ya shamba. Je, kuna chaguo la chakula cha mchana lisilo na nyama?", time: "09:10" },
-    { id: "vegetarian-2", from: "me", text: "Guten Tag! Ja, unser Farm-to-Table Mittagessen ($10/Person) bietet frische vegetarische Spezialitäten mit Gemüse von unserem eigenen Feld. Wir bereiten das sehr gerne für Sie vor!", time: "09:13" },
+  { id: "vegetarian", name: "Mara & Jonas", initials: "MJ", tone: "bg-primary-soft text-primary", guests: 2, unread: 0, language: "English", messages: [
+    { id: "vegetarian-1", from: "guest", text: "Hello! We would like to take the farm tour. Is there a vegetarian option for lunch?", time: "09:10" },
+    { id: "vegetarian-2", from: "me", text: "Hello! Our Farm-to-Table Local Lunch costs 10 USD / 23,000 TZS per person. We can prepare a vegetarian option with vegetables from our farm.", time: "09:13" },
   ] },
   { id: "directions", name: "Sofia Rossi", initials: "SR", tone: "bg-warning-soft text-warning-foreground", guests: 1, unread: 0, language: "English", messages: [
     { id: "directions-1", from: "guest", text: "Is your farm easy to reach with a local taxi or minibus from the town center?", time: "Yesterday" },
@@ -105,6 +105,7 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
   const [draft, setDraft] = useState("");
   const [draftLocal, setDraftLocal] = useState("");
   const [draftBusy, setDraftBusy] = useState(false);
+  const [composing, setComposing] = useState(false);
   const [plan, setPlan] = useState<Draft | null>(null);
   const [status, setStatus] = useState("");
   const [expanded, setExpanded] = useState(false);
@@ -116,22 +117,25 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
   const submit = async () => {
     const text = draft.trim();
     if (!text) return;
+    onSend(text);
+    setDraft(""); setDraftLocal(""); setPlan(null); setExpanded(false);
     try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard access is unavailable.");
       await navigator.clipboard.writeText(text);
-      onSend(text);
-      setDraft(""); setDraftLocal(""); setPlan(null); setExpanded(false);
       setStatus("Reply added to this demo chat and copied for your messaging app.");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Reply could not be copied or saved.");
+    } catch {
+      setStatus("Reply added to this demo chat. Clipboard copy failed; copy it manually if needed.");
     }
   };
   const createDraft = async () => {
+    if (composing) return;
     const guestMessage = thread.messages.filter((message) => message.from === "guest").at(-1)?.text ?? "";
-    onModelEvent?.("Local Reply Composer", "run", `Guest input: “${guestMessage.slice(0, 140)}”`);
+    onModelEvent?.("Tourism Intent Mini v2", "run", `Guest input: “${guestMessage.slice(0, 140)}”`);
     const started = performance.now();
+    setComposing(true);
     try {
       const next = await onDraft(thread);
-      onModelEvent?.("Local Reply Composer", "output", `${Math.round(performance.now() - started)} ms · Draft: “${next.text.slice(0, 180)}”`);
+      onModelEvent?.("Tourism Intent Mini v2", "output", `${Math.round(performance.now() - started)} ms · ${next.intents.map((intent) => intent.label).join(", ") || "no intent"} · Draft: “${next.text.slice(0, 180)}”`);
       setPlan(next);
       setDraft(next.text);
       setDraftLocal("");
@@ -139,7 +143,9 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
       if (packReady) await translateDraft(next.text);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Draft failed.");
-      onModelEvent?.("Local Reply Composer", "error", error instanceof Error ? error.message : "Draft failed");
+      onModelEvent?.("Tourism Intent Mini v2", "error", error instanceof Error ? error.message : "Draft failed");
+    } finally {
+      setComposing(false);
     }
   };
   const translateDraft = async (text: string) => {
@@ -163,11 +169,6 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
   const toggleTranslation = async (message: ChatMessage) => {
     if (shown[message.id]) { setShown((items) => ({ ...items, [message.id]: false })); return; }
     setShown((items) => ({ ...items, [message.id]: true }));
-    if (message.translation && language === "Kiswahili") {
-      setTranslations((items) => ({ ...items, [message.id]: message.translation! }));
-      onModelEvent?.("Verified Demo Translation", "output", `Stored translation: “${message.translation.slice(0, 180)}”`);
-      return;
-    }
     if (thread.language !== "English") {
       const unavailable = `No verified offline ${thread.language} → ${language} model is installed.`;
       setTranslations((items) => ({ ...items, [message.id]: unavailable }));
@@ -216,8 +217,12 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
         <div ref={endRef} />
       </div>
       {draftLocal && <div className="mb-2 rounded-xl border-2 border-border bg-card p-3 text-xs"><strong>Draft in {language}:</strong><p className="mt-1">{draftLocal}</p></div>}
-      {!expanded && <Button type="button" size="icon" variant="ghost" onClick={() => void createDraft()} className="mx-auto mb-2 size-10 self-center rounded-xl bg-accent-soft text-accent" aria-label={copy.draft ?? "Draft reply"} title={copy.draft ?? "Draft reply"}>
-        <Sparkles className="size-5" />
+      {plan && (plan.needsOwner.length > 0 || plan.criticalDetails.length > 0) && <div role="note" className="mb-2 rounded-xl border-2 border-warning-foreground/30 bg-warning-soft p-3 text-xs text-warning-foreground">
+        {plan.needsOwner.length > 0 && <p><strong>Confirm before sending:</strong> {plan.needsOwner.join("; ")}.</p>}
+        {plan.criticalDetails.length > 0 && <p className={plan.needsOwner.length ? "mt-1" : ""}><strong>Keep exact:</strong> {plan.criticalDetails.join("; ")}.</p>}
+      </div>}
+      {!expanded && <Button type="button" size="icon" variant="ghost" onClick={() => void createDraft()} disabled={composing} className="mx-auto mb-2 size-10 self-center rounded-xl bg-accent-soft text-accent" aria-label={copy.draft ?? "Draft reply"} title={copy.draft ?? "Draft reply"}>
+        {composing ? <RefreshCw className="size-5 animate-spin" /> : <Sparkles className="size-5" />}
       </Button>}
       {draft.trim() && packReady && <Button type="button" variant="ghost" onClick={() => void translateDraft(draft)} disabled={draftBusy} className="mb-2 self-start rounded-xl text-xs"><Languages className="size-4" />{draftBusy ? "Translating draft…" : `Review in ${language}`}</Button>}
       {status && <p role="status" className="mb-2 text-xs font-semibold text-primary">{status}</p>}

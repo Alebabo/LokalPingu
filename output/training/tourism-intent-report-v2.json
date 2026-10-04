@@ -1,0 +1,297 @@
+{
+  "model": "LokalPingu Tourism Intent Mini",
+  "version": 2,
+  "metrics": {
+    "exact_match": 0.772727,
+    "micro_precision": 0.904762,
+    "micro_recall": 0.791667,
+    "micro_f1": 0.844444
+  },
+  "thresholdValidationMetrics": {
+    "exact_match": 0.882353,
+    "micro_precision": 1.0,
+    "micro_recall": 0.85,
+    "micro_f1": 0.918919
+  },
+  "developmentMetrics": {
+    "exact_match": 0.948718,
+    "micro_precision": 1.0,
+    "micro_recall": 0.921053,
+    "micro_f1": 0.958904
+  },
+  "modelBytes": 218032,
+  "trainingExamples": 19800,
+  "validationExamples": 17,
+  "developmentExamples": 39,
+  "testExamples": 22,
+  "cases": [
+    {
+      "text": "What would two adults and one child need to pay for the tasting?",
+      "expected": [
+        "price"
+      ],
+      "predicted": [
+        "price",
+        "dietary"
+      ],
+      "scores": {
+        "price": 0.7134,
+        "capacity": 0.1693,
+        "dietary": 0.3979,
+        "cancellation": 0.1231,
+        "suitability": 0.2939
+      }
+    },
+    {
+      "text": "Could you describe the turn after the church so our driver finds the entrance?",
+      "expected": [
+        "location"
+      ],
+      "predicted": [
+        "location"
+      ],
+      "scores": {
+        "location": 0.6326,
+        "transport": 0.196
+      }
+    },
+    {
+      "text": "May we arrive around 19:30, or is that too late?",
+      "expected": [
+        "checkin"
+      ],
+      "predicted": [
+        "checkin"
+      ],
+      "scores": {
+        "checkin": 0.9653
+      }
+    },
+    {
+      "text": "Our school group has twelve participants; can everyone attend together?",
+      "expected": [
+        "capacity"
+      ],
+      "predicted": [
+        "capacity"
+      ],
+      "scores": {
+        "capacity": 0.894
+      }
+    },
+    {
+      "text": "Does the kitchen avoid shellfish for guests with an allergy?",
+      "expected": [
+        "dietary"
+      ],
+      "predicted": [
+        "dietary"
+      ],
+      "scores": {
+        "dietary": 0.7948
+      }
+    },
+    {
+      "text": "If illness stops us travelling, what happens to the reservation?",
+      "expected": [
+        "cancellation"
+      ],
+      "predicted": [
+        "cancellation"
+      ],
+      "scores": {
+        "cancellation": 0.8404
+      }
+    },
+    {
+      "text": "Do you have room on Tuesday morning for the farm experience?",
+      "expected": [
+        "availability"
+      ],
+      "predicted": [],
+      "scores": {
+        "availability": 0.4562,
+        "weather": 0.1546
+      }
+    },
+    {
+      "text": "Can I transfer the money from my bank instead of bringing notes?",
+      "expected": [
+        "payment"
+      ],
+      "predicted": [
+        "transport"
+      ],
+      "scores": {
+        "payment": 0.2475,
+        "transport": 0.6689
+      }
+    },
+    {
+      "text": "Which bus should we catch from the centre to reach the farm?",
+      "expected": [
+        "transport"
+      ],
+      "predicted": [
+        "transport"
+      ],
+      "scores": {
+        "location": 0.2189,
+        "transport": 0.6685
+      }
+    },
+    {
+      "text": "Do visits continue during thunderstorms?",
+      "expected": [
+        "weather"
+      ],
+      "predicted": [],
+      "scores": {
+        "payment": 0.1325,
+        "weather": 0.2393
+      }
+    },
+    {
+      "text": "Is the experience accessible without climbing many stairs?",
+      "expected": [
+        "suitability"
+      ],
+      "predicted": [
+        "suitability"
+      ],
+      "scores": {
+        "weather": 0.1461,
+        "suitability": 0.6599
+      }
+    },
+    {
+      "text": "Can eight of us come tomorrow and what is the total charge?",
+      "expected": [
+        "capacity",
+        "availability",
+        "price"
+      ],
+      "predicted": [
+        "price",
+        "capacity",
+        "availability"
+      ],
+      "scores": {
+        "price": 0.7317,
+        "capacity": 0.3998,
+        "availability": 0.8376
+      }
+    },
+    {
+      "text": "Where should we wait for pickup, and can we pay the driver by card?",
+      "expected": [
+        "location",
+        "transport",
+        "payment"
+      ],
+      "predicted": [
+        "location",
+        "payment",
+        "transport"
+      ],
+      "scores": {
+        "location": 0.3583,
+        "payment": 0.6694,
+        "transport": 0.7457
+      }
+    },
+    {
+      "text": "If bad weather forces a cancellation, will the deposit come back?",
+      "expected": [
+        "weather",
+        "cancellation"
+      ],
+      "predicted": [
+        "cancellation",
+        "weather"
+      ],
+      "scores": {
+        "cancellation": 0.7663,
+        "weather": 0.6658
+      }
+    },
+    {
+      "text": "Need vegan food for 4 ppl. Any space nxt wknd?",
+      "expected": [
+        "dietary",
+        "capacity",
+        "availability"
+      ],
+      "predicted": [
+        "dietary"
+      ],
+      "scores": {
+        "dietary": 0.8345
+      }
+    },
+    {
+      "text": "Wht time cn we arive n is taxi pickup posible?",
+      "expected": [
+        "checkin",
+        "transport"
+      ],
+      "predicted": [
+        "checkin",
+        "transport"
+      ],
+      "scores": {
+        "checkin": 0.5233,
+        "transport": 0.8295
+      }
+    },
+    {
+      "text": "The lunch tasted wonderful and everyone enjoyed the afternoon.",
+      "expected": [],
+      "predicted": [],
+      "scores": {}
+    },
+    {
+      "text": "We had sunshine all day and the children loved the farm.",
+      "expected": [],
+      "predicted": [],
+      "scores": {}
+    },
+    {
+      "text": "Thanks for sending our forgotten hat back.",
+      "expected": [],
+      "predicted": [],
+      "scores": {}
+    },
+    {
+      "text": "I am still discussing the trip and have no question yet.",
+      "expected": [],
+      "predicted": [],
+      "scores": {
+        "availability": 0.1216
+      }
+    },
+    {
+      "text": "Please tell Noor that the guide did an excellent job.",
+      "expected": [],
+      "predicted": [],
+      "scores": {}
+    },
+    {
+      "text": "This message is only a test.",
+      "expected": [],
+      "predicted": [],
+      "scores": {
+        "price": 0.3422,
+        "availability": 0.1967,
+        "payment": 0.2348,
+        "transport": 0.2348,
+        "suitability": 0.2702
+      }
+    }
+  ],
+  "limitations": [
+    "Training messages are synthetic English tourism enquiries with generated noise.",
+    "The independent manual test set is small; metrics are directional, not a field benchmark.",
+    "The classifier routes messages only. It never supplies business facts or confirms bookings."
+  ]
+}

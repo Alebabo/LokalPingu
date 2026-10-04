@@ -1,0 +1,232 @@
+{
+  "model": "LokalPingu Tourism Intent Mini",
+  "metrics": {
+    "exact_match": 0.882353,
+    "micro_precision": 1.0,
+    "micro_recall": 0.9,
+    "micro_f1": 0.947368
+  },
+  "modelBytes": 107588,
+  "trainingExamples": 5250,
+  "validationExamples": 17,
+  "cases": [
+    {
+      "text": "Could you quote the coffee experience for three?",
+      "expected": [
+        "price"
+      ],
+      "predicted": [
+        "price"
+      ],
+      "scores": {
+        "price": 0.6628
+      }
+    },
+    {
+      "text": "Drop a map pin so our driver can locate you.",
+      "expected": [
+        "location"
+      ],
+      "predicted": [
+        "location"
+      ],
+      "scores": {
+        "location": 0.9999
+      }
+    },
+    {
+      "text": "What is the earliest we may show up?",
+      "expected": [
+        "checkin"
+      ],
+      "predicted": [
+        "checkin"
+      ],
+      "scores": {
+        "checkin": 0.9998
+      }
+    },
+    {
+      "text": "Will a party of eight fit?",
+      "expected": [
+        "capacity"
+      ],
+      "predicted": [
+        "capacity"
+      ],
+      "scores": {
+        "capacity": 0.9999
+      }
+    },
+    {
+      "text": "My daughter is allergic to nuts. Can she eat lunch?",
+      "expected": [
+        "dietary"
+      ],
+      "predicted": [
+        "dietary"
+      ],
+      "scores": {
+        "dietary": 0.999
+      }
+    },
+    {
+      "text": "If our flight changes, may we undo the reservation?",
+      "expected": [
+        "cancellation"
+      ],
+      "predicted": [
+        "cancellation"
+      ],
+      "scores": {
+        "cancellation": 0.9999
+      }
+    },
+    {
+      "text": "Any openings next Saturday for the roasting tour?",
+      "expected": [
+        "availability"
+      ],
+      "predicted": [
+        "availability"
+      ],
+      "scores": {
+        "price": 0.1149,
+        "availability": 0.9592,
+        "suitability": 0.2576
+      }
+    },
+    {
+      "text": "Do you take Visa or only notes and coins?",
+      "expected": [
+        "payment"
+      ],
+      "predicted": [
+        "payment"
+      ],
+      "scores": {
+        "payment": 1.0
+      }
+    },
+    {
+      "text": "Could someone collect us at Ondera Market?",
+      "expected": [
+        "transport"
+      ],
+      "predicted": [
+        "transport"
+      ],
+      "scores": {
+        "transport": 1.0
+      }
+    },
+    {
+      "text": "Would heavy rain stop the farm visit?",
+      "expected": [
+        "weather"
+      ],
+      "predicted": [
+        "weather"
+      ],
+      "scores": {
+        "price": 0.2229,
+        "location": 0.2566,
+        "availability": 0.1701,
+        "weather": 0.9927
+      }
+    },
+    {
+      "text": "My father walks slowly. Is the route manageable?",
+      "expected": [
+        "suitability"
+      ],
+      "predicted": [
+        "suitability"
+      ],
+      "scores": {
+        "suitability": 1.0
+      }
+    },
+    {
+      "text": "How much is lunch and can you host six tomorrow?",
+      "expected": [
+        "price",
+        "capacity",
+        "availability"
+      ],
+      "predicted": [
+        "price",
+        "capacity"
+      ],
+      "scores": {
+        "price": 0.763,
+        "capacity": 0.9244,
+        "dietary": 0.1609
+      }
+    },
+    {
+      "text": "We need a vegan meal and one person has a dairy allergy.",
+      "expected": [
+        "dietary"
+      ],
+      "predicted": [
+        "dietary"
+      ],
+      "scores": {
+        "dietary": 0.9896,
+        "cancellation": 0.222
+      }
+    },
+    {
+      "text": "Where do we meet, and can we get there by minibus?",
+      "expected": [
+        "location",
+        "transport"
+      ],
+      "predicted": [
+        "location",
+        "transport"
+      ],
+      "scores": {
+        "location": 0.8061,
+        "payment": 0.1095,
+        "transport": 0.8826
+      }
+    },
+    {
+      "text": "Can we pay cash if rain makes us move the booking?",
+      "expected": [
+        "payment",
+        "weather",
+        "cancellation"
+      ],
+      "predicted": [
+        "payment",
+        "weather"
+      ],
+      "scores": {
+        "payment": 0.756,
+        "weather": 0.9981
+      }
+    },
+    {
+      "text": "Hello, I saw your farm online and have a question.",
+      "expected": [],
+      "predicted": [],
+      "scores": {
+        "availability": 0.1618
+      }
+    },
+    {
+      "text": "Thank you for the lovely coffee yesterday.",
+      "expected": [],
+      "predicted": [],
+      "scores": {}
+    }
+  ],
+  "limitations": [
+    "Training messages are synthetic English tourism enquiries.",
+    "Held-out validation is small and manually authored; metrics are directional, not a field benchmark.",
+    "The classifier routes messages only. It never supplies business facts or confirms bookings."
+  ]
+}

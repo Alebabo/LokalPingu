@@ -1,0 +1,27 @@
+{
+  "evaluationSet": "22 manually authored hard free-text audit messages",
+  "sameAuditSetForBothModels": true,
+  "v1": {
+    "trainingExamples": 5250,
+    "exactMatch": 0.363636,
+    "microPrecision": 0.8,
+    "microRecall": 0.166667,
+    "microF1": 0.275862
+  },
+  "v2": {
+    "trainingExamples": 19800,
+    "exactMatch": 0.772727,
+    "microPrecision": 0.904762,
+    "microRecall": 0.791667,
+    "microF1": 0.844444
+  },
+  "absoluteGain": {
+    "exactMatch": 0.409091,
+    "microF1": 0.568582
+  },
+  "notes": [
+    "The audit set contains indirect phrasing, multiple intents, abbreviations, and out-of-domain messages.",
+    "The audit set is still small and is not a field benchmark.",
+    "Both models classify intents only; deterministic code controls facts and confirmations."
+  ]
+}

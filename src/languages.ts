@@ -24,9 +24,12 @@ export function modelId(code: LanguageCode): string {
   return 'Xenova/opus-mt-en-mul';
 }
 
+export function supportsReverseTranslation(code: LanguageCode): boolean {
+  return code === 'id';
+}
+
 export function outboundModelId(code: LanguageCode): string {
-  if (code === 'bi') return 'LokalPingu/opus-mt-bi-en';
   if (code === 'id') return 'Xenova/opus-mt-id-en';
-  return 'Xenova/opus-mt-mul-en';
+  throw new Error('Local-to-English translation is not verified for this language.');
 }
 

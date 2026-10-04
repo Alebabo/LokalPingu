@@ -5,8 +5,9 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  build: { chunkSizeWarningLimit: 550 },
   resolve: {
-    alias: { '@': path.resolve(__dirname, 'src') },
+    alias: { '@': path.resolve(import.meta.dirname, 'src') },
   },
   plugins: [react(), tailwindcss(), VitePWA({
     registerType: 'autoUpdate',
@@ -30,6 +31,7 @@ export default defineConfig({
     workbox: {
       cleanupOutdatedCaches: true,
       globIgnores: ['**/models/**'],
+      globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,wasm,webmanifest}'],
       maximumFileSizeToCacheInBytes: 25 * 1024 * 1024
     }
   })]

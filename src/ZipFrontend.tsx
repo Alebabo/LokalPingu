@@ -24,7 +24,6 @@ import {
   ShieldCheck,
   Smartphone,
   Sparkles,
-  Star,
   TrendingUp,
   Tag,
   Wifi,
@@ -34,12 +33,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { siAirbnb, siBookingdotcom, siGoogle, siInstagram, siMessenger, siWhatsapp, type SimpleIcon } from "simple-icons";
 import { useGuestThreads, ThreadList, Conversation } from "@/components/GuestChat";
-import { languages, type LanguageCode } from "./languages";
+import { languages, supportsReverseTranslation, type LanguageCode } from "./languages";
 import { hasLanguagePack, hasReverseLanguagePack, installLanguagePack, installReverseLanguagePack, translateEnglish, translateToEnglish } from "./local-translation";
 import { decodeRecordedAudio, hasSpeechModel, installSpeechModel, transcribeAudio } from "./local-speech";
 import { clearBusinessData, getProfile, listBookings, listPrices, listProducts, replaceCatalog, savePrice, saveProduct, saveProfile, type BookingRecord, type BusinessProfile, type PriceItem, type Product } from "./memory";
-import { draftReply } from "./reply";
+import { criticalDetails, draftReply } from "./reply";
 import { DEMO_SEED_KEY, NOOR_PRICES, NOOR_PRODUCTS, NOOR_PROFILE } from "./demo-data";
+import { runLocalAssistant } from "./local-assistant";
 const lokalPinguIconAsset = { url: penguinP };
 import { PenguinP } from "@/components/PenguinP";
 
@@ -58,6 +58,34 @@ const DEVICE_PROFILES: DeviceProfile[] = [
 ];
 const LOCAL_PRODUCTS_KEY = "lokalpingu-local-products";
 const LOCAL_PRICES_KEY = "lokalpingu-local-prices";
+const DEMO_RUN_ID = (() => {
+  const query = new URLSearchParams(window.location.search);
+  return query.get("demo") === "1" ? (query.get("run") || "direct") : null;
+})();
+const DEMO_RUN_KEY = DEMO_RUN_ID ? `lokalpingu-demo-run:${DEMO_RUN_ID}` : null;
+const DEMO_NEEDS_RESET = Boolean(DEMO_RUN_KEY && window.sessionStorage.getItem(DEMO_RUN_KEY) !== "complete");
+let demoResetPromise: Promise<void> | null = null;
+
+function prepareDemoLaunch(): Promise<void> {
+  if (!DEMO_NEEDS_RESET || !DEMO_RUN_KEY) return Promise.resolve();
+  if (!demoResetPromise) {
+    demoResetPromise = (async () => {
+      await clearBusinessData();
+      for (const key of [
+        LOCAL_PRODUCTS_KEY,
+        LOCAL_PRICES_KEY,
+        "lokalpingu-onboarding",
+        "lokalpingu-app-language",
+        "lokalpingu-local-language",
+        "lokalpingu-currency",
+        "lokalpingu-noor-demo-v1",
+        DEMO_SEED_KEY,
+      ]) window.localStorage.removeItem(key);
+      window.sessionStorage.setItem(DEMO_RUN_KEY, "complete");
+    })();
+  }
+  return demoResetPromise;
+}
 const CONNECTORS: { name: string; icon: SimpleIcon }[] = [
   { name: "Google Business", icon: siGoogle },
   { name: "WhatsApp", icon: siWhatsapp },
@@ -70,62 +98,10 @@ const CONNECTORS: { name: string; icon: SimpleIcon }[] = [
 function readLocal<T>(key: string): T[] {
   try { const raw = window.localStorage.getItem(key); return raw ? (JSON.parse(raw) as T[]) : []; } catch { return []; }
 }
-function money(amount: number, from: string, _to: string) {
-  return `${from} ${amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+function money(amount: number, currency: string, _displayCurrency: string) {
+  return `${currency} ${amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 }
-/** Offline assistant: understands simple add/change/reply requests without any account or network. */
-function runLocalAssistant(text: string, language: AppLanguage, products: Product[], prices: PriceItem[], businessName: string, currency = "IDR"): { reply: string; products: Product[]; prices: PriceItem[] } {
-  const de = language === "de";
-  const lower = text.toLowerCase();
-  if (/(performance|insight|analyse|analysis|auswert|leistung|kpi)/i.test(lower)) {
-    return {
-      reply: de
-        ? "Performance dieses Monats:\n\n• 28 Gästeanfragen insgesamt\n• 5 neue Anfragen warten auf eine Antwort\n• Häufigste Sprachen: Englisch 65 %, Deutsch 20 %, Französisch 15 %\n• Besonders beliebt: traditionelles Röstritual und Farm-to-Table-Mittagessen\n• Häufigste offene Frage: Anreise vom Ondera Market"
-        : "This month’s performance:\n\n• 28 guest requests in total\n• 5 new requests are waiting for a reply\n• Top languages: English 65%, German 20%, French 15%\n• Most praised: traditional roasting ritual and farm-to-table lunch\n• Most common open question: directions from Ondera Market",
-      products,
-      prices,
-    };
-  }
-  const addMatch = text.match(/(?:add|create|new|füge?|hinzufügen|neu[e]?[rs]?|erstelle)\s+(.+?)\s+(?:for|für)\s+([\d.,]+)/i);
-  if (addMatch) {
-    const name = addMatch[1]!.trim();
-    const amount = Number(addMatch[2]!.replace(/\./g, "").replace(",", "."));
-    if (Number.isFinite(amount)) {
-      const product: Product = { id: crypto.randomUUID(), name, category: "Offer", description: "", active: true };
-      const price: PriceItem = { id: crypto.randomUUID(), label: name, price: amount, currency, unit: "item", active: true };
-      return {
-        reply: de ? `Erledigt: „${name}“ als Produkt angelegt mit Preis ${amount.toLocaleString("de-DE")} ${currency}. Offline auf diesem Gerät gespeichert.` : `Done: “${name}” added as a product at ${amount.toLocaleString("en-US")} ${currency}. Saved offline on this device.`,
-        products: [...products, product], prices: [...prices, price],
-      };
-    }
-  }
-  const changeMatch = text.match(/(?:change|set|update|ändere|andere|aktualisiere)\s+(.+?)\s+(?:price\s+|preis\s+)?(?:to|auf)\s+([\d.,]+)/i);
-  if (changeMatch) {
-    const requestedLabel = changeMatch[1]!.trim().toLowerCase();
-    const label = requestedLabel.includes("kaffeebohnen") ? "coffee beans" : requestedLabel;
-    const amount = Number(changeMatch[2]!.replace(/\./g, "").replace(",", "."));
-    const target = prices.find((p) => p.label.toLowerCase().includes(label));
-    if (target && Number.isFinite(amount)) {
-      const next = prices.map((p) => (p.id === target.id ? { ...p, price: amount, currency } : p));
-      return {
-        reply: de ? `Preis für „${target.label}“ auf ${amount.toLocaleString("de-DE")} ${currency} geändert.` : `Price for “${target.label}” changed to ${amount.toLocaleString("en-US")} ${currency}.`,
-        products, prices: next,
-      };
-    }
-    return { reply: de ? `Ich habe keinen Preiseintrag gefunden, der zu „${changeMatch[1]!.trim()}“ passt.` : `I couldn't find a price entry matching “${changeMatch[1]!.trim()}”.`, products, prices };
-  }
-  if (/(reply|antwort|guest|gast|draft|entwurf)/i.test(lower)) {
-    const priceLines = prices.slice(0, 3).map((p) => `${p.label}: ${money(p.price, p.currency, currency)}`).join("; ");
-    const draft = `Hello! Thank you for your message to ${businessName}. ${priceLines ? `Our current prices: ${priceLines}. ` : ""}We would be happy to welcome you. Please let us know your dates and the number of guests.`;
-    return { reply: (de ? "Antwortentwurf für den Gast (Englisch):\n\n" : "Draft reply for the guest (English):\n\n") + draft, products, prices };
-  }
-  return {
-    reply: de
-      ? "Ich arbeite offline auf diesem Gerät. Beispiele: „Füge Kajaktour für 250000 hinzu“, „Ändere Frühstück auf 60000“, „Antwortentwurf für Gast“."
-      : "I work offline on this device. Try: “Add kayak tour for 250000”, “Change breakfast to 60000”, “Draft guest reply”.",
-    products, prices,
-  };
-}
+const ASSISTANT_SUGGESTIONS = ["Evaluate this month's performance", "Change Bag of Fresh Organic Coffee Beans price to 9", "Draft a reply for the newest request"];
 
 const UI = {
   en: {
@@ -136,7 +112,7 @@ const UI = {
     insights: "Useful insights", allCaught: "You’re all caught up", profileAlert: "Complete your Google profile", profileAlertText: "A complete profile helps LocalPingu answer guests accurately.",
     demand: "Demand is rising", demandText: "Friday and Saturday receive the most guest requests.", priceAlert: "Price list ready", priceAlertText: "Your saved prices can now be used in reply drafts.",
     appLanguage: "App language", localLanguage: "Your spoken language", preferences: "Preferences", currency: "Currency", reset: "Reset app", resetText: "Restart the demo and onboarding on this device.",
-    suggestions: ["Evaluate this month's performance", "Change Bag of Fresh Organic Coffee Beans price to 9", "Draft a reply for the newest request"],
+    suggestions: ASSISTANT_SUGGESTIONS,
     confirmReset: "Reset LocalPingu?", confirmResetText: "This clears demo preferences on this device. Your saved business data stays safe.", cancel: "Cancel", confirm: "Reset app",
     welcome: "Welcome to LocalPingu", welcomeText: "Understand guests, reply confidently, and keep your business knowledge in one place.", continue: "Continue", back: "Back",
     chooseApp: "Choose the app language", chooseAppText: "You can change this later in Settings.", chooseLocal: "Which language do you speak?", chooseLocalText: "Guests speak English. LocalPingu translates for you.",
@@ -153,7 +129,7 @@ const UI = {
     insights: "Nützliche Hinweise", allCaught: "Alles angesehen", profileAlert: "Google-Profil vervollständigen", profileAlertText: "Ein vollständiges Profil hilft LocalPingu, Gästen korrekt zu antworten.",
     demand: "Nachfrage steigt", demandText: "Freitag und Samstag erhalten die meisten Gästeanfragen.", priceAlert: "Preisliste bereit", priceAlertText: "Gespeicherte Preise können jetzt in Antwortentwürfen genutzt werden.",
     appLanguage: "App-Sprache", localLanguage: "Deine Sprache", preferences: "Präferenzen", currency: "Währung", reset: "App zurücksetzen", resetText: "Demo und Onboarding auf diesem Gerät neu starten.",
-    suggestions: ["Performance dieses Monats auswerten", "Ändere Kaffeebohnen Preis auf 9", "Antwort auf die neueste Anfrage entwerfen"],
+    suggestions: ASSISTANT_SUGGESTIONS,
     confirmReset: "LocalPingu zurücksetzen?", confirmResetText: "Demo-Einstellungen werden gelöscht. Gespeicherte Betriebsdaten bleiben erhalten.", cancel: "Abbrechen", confirm: "App zurücksetzen",
     welcome: "Willkommen bei LocalPingu", welcomeText: "Verstehe Gäste, antworte sicher und verwalte dein Betriebswissen an einem Ort.", continue: "Weiter", back: "Zurück",
     chooseApp: "App-Sprache wählen", chooseAppText: "Du kannst sie später in den Einstellungen ändern.", chooseLocal: "Welche Sprache sprichst du?", chooseLocalText: "Gäste sprechen Englisch. LocalPingu übersetzt für dich.",
@@ -170,7 +146,7 @@ const UI = {
     insights: "Info bermanfaat", allCaught: "Semua sudah dilihat", profileAlert: "Lengkapi profil Google Anda", profileAlertText: "Profil lengkap membantu LocalPingu menjawab tamu dengan akurat.",
     demand: "Permintaan meningkat", demandText: "Jumat dan Sabtu menerima permintaan terbanyak.", priceAlert: "Daftar harga siap", priceAlertText: "Harga tersimpan kini bisa dipakai dalam draf balasan.",
     appLanguage: "Bahasa aplikasi", localLanguage: "Bahasa Anda", preferences: "Preferensi", currency: "Mata uang", reset: "Atur ulang aplikasi", resetText: "Mulai ulang demo dan orientasi di perangkat ini.",
-    suggestions: ["Tambah tur kayak 250000", "Ubah sarapan menjadi 60000", "Draf balasan untuk tamu"],
+    suggestions: ASSISTANT_SUGGESTIONS,
     confirmReset: "Atur ulang LocalPingu?", confirmResetText: "Ini menghapus preferensi demo di perangkat ini. Data bisnis Anda tetap aman.", cancel: "Batal", confirm: "Atur ulang",
     welcome: "Selamat datang di LocalPingu", welcomeText: "Pahami tamu, balas dengan percaya diri, dan simpan pengetahuan bisnis di satu tempat.", continue: "Lanjut", back: "Kembali",
     chooseApp: "Pilih bahasa aplikasi", chooseAppText: "Bisa diubah nanti di Pengaturan.", chooseLocal: "Bahasa apa yang Anda bicarakan?", chooseLocalText: "Tamu berbahasa Inggris. LocalPingu menerjemahkan untuk Anda.",
@@ -187,7 +163,7 @@ const UI = {
     insights: "দরকারি পরামর্শ", allCaught: "সব দেখা হয়েছে", profileAlert: "আপনার Google প্রোফাইল সম্পূর্ণ করুন", profileAlertText: "সম্পূর্ণ প্রোফাইল LocalPingu-কে অতিথিদের সঠিকভাবে উত্তর দিতে সাহায্য করে।",
     demand: "চাহিদা বাড়ছে", demandText: "শুক্রবার ও শনিবার সবচেয়ে বেশি অনুরোধ আসে।", priceAlert: "তালিকা প্রস্তুত", priceAlertText: "সংরক্ষিত দাম এখন উত্তরের খসড়ায় ব্যবহার করা যায়।",
     appLanguage: "অ্যাপের ভাষা", localLanguage: "আপনার ভাষা", preferences: "পছন্দসমূহ", currency: "মুদ্রা", reset: "অ্যাপ রিসেট", resetText: "এই ডিভাইসে ডেমো ও সেটআপ আবার শুরু করুন।",
-    suggestions: ["২৫০০০০-এ কায়াক ট্যুর যোগ করুন", "নাস্তা ৬০০০০ করুন", "অতিথির উত্তরের খসড়া"],
+    suggestions: ASSISTANT_SUGGESTIONS,
     confirmReset: "LocalPingu রিসেট করবেন?", confirmResetText: "এতে এই ডিভাইসের ডেমো পছন্দ মুছে যায়। আপনার ব্যবসার তথ্য নিরাপদ থাকে।", cancel: "বাতিল", confirm: "রিসেট করুন",
     welcome: "LocalPingu-তে স্বাগতম", welcomeText: "অতিথিদের বুঝুন, নিশ্চিতভাবে উত্তর দিন এবং ব্যবসার তথ্য এক জায়গায় রাখুন।", continue: "পরবর্তী", back: "পেছনে",
     chooseApp: "অ্যাপের ভাষা বেছে নিন", chooseAppText: "পরে সেটিংসে বদলাতে পারবেন।", chooseLocal: "আপনি কোন ভাষায় কথা বলেন?", chooseLocalText: "অতিথিরা ইংরেজিতে কথা বলেন। LocalPingu আপনার জন্য অনুবাদ করে।",
@@ -204,7 +180,7 @@ const UI = {
     insights: "उपयोगी सुझाव", allCaught: "सब देख लिया", profileAlert: "अपनी Google प्रोफ़ाइल पूरी करें", profileAlertText: "पूरी प्रोफ़ाइल LocalPingu को अतिथियों को सही उत्तर देने में मदद करती है।",
     demand: "मांग बढ़ रही है", demandText: "शुक्रवार और शनिवार को सबसे अधिक अनुरोध आते हैं।", priceAlert: "कीमत सूची तैयार", priceAlertText: "सहेजी गई कीमतें अब उत्तर ड्राफ़्ट में उपयोग हो सकती हैं।",
     appLanguage: "ऐप की भाषा", localLanguage: "आपकी भाषा", preferences: "प्राथमिकताएँ", currency: "मुद्रा", reset: "ऐप रीसेट करें", resetText: "इस डिवाइस पर डेमो और ऑनबोर्डिंग फिर से शुरू करें।",
-    suggestions: ["250000 के लिए कायाक टूर जोड़ें", "नाश्ता 60000 करें", "अतिथि उत्तर ड्राफ़्ट"],
+    suggestions: ASSISTANT_SUGGESTIONS,
     confirmReset: "LocalPingu रीसेट करें?", confirmResetText: "इससे इस डिवाइस की डेमो प्राथमिकताएँ हट जाती हैं। व्यवसाय का डेटा सुरक्षित रहता है।", cancel: "रद्द करें", confirm: "रीसेट करें",
     welcome: "LocalPingu में आपका स्वागत है", welcomeText: "अतिथियों को समझें, भरोसे के साथ उत्तर दें और व्यवसाय की जानकारी एक जगह रखें।", continue: "आगे बढ़ें", back: "वापस",
     chooseApp: "ऐप की भाषा चुनें", chooseAppText: "आप बाद में सेटिंग्स में बदल सकते हैं।", chooseLocal: "आप कौन सी भाषा बोलते हैं?", chooseLocalText: "अतिथि अंग्रेज़ी बोलते हैं। LocalPingu आपके लिए अनुवाद करता है।",
@@ -221,7 +197,7 @@ const UI = {
     insights: "பயனுள்ள குறிப்புகள்", allCaught: "அனைத்தையும் பார்த்தீர்கள்", profileAlert: "உங்கள் Google சுயவிவரத்தை முடிக்கவும்", profileAlertText: "முழுமையான சுயவிவரம் LocalPingu விருந்தினருக்கு துல்லியமாக பதிலளிக்க உதவும்.",
     demand: "தேவை அதிகரிக்கிறது", demandText: "வெள்ளி மற்றும் சனி அதிக கோரிக்கைகள் பெறுகின்றன.", priceAlert: "விலைப்பட்டியல் தயார்", priceAlertText: "சேமித்த விலைகளை இப்போது பதில் வரைவுகளில் பயன்படுத்தலாம்.",
     appLanguage: "ஆப் மொழி", localLanguage: "உங்கள் மொழி", preferences: "விருப்பங்கள்", currency: "நாணயம்", reset: "ஆப்பை மீட்டமை", resetText: "இந்த சாதனத்தில் டெமோ மற்றும் அமைவை மீண்டும் தொடங்கு.",
-    suggestions: ["கயாக் சுற்றுலா 250000 சேர்க்கவும்", "காலை உணவு 60000 என மாற்றவும்", "விருந்தினர் பதில் வரைவு"],
+    suggestions: ASSISTANT_SUGGESTIONS,
     confirmReset: "LocalPingu-ஐ மீட்டமைக்கவா?", confirmResetText: "இது இந்த சாதனத்தின் டெமோ விருப்பங்களை அழிக்கும். உங்கள் வணிகத் தரவு பாதுகாப்பாக இருக்கும்.", cancel: "ரத்து", confirm: "மீட்டமை",
     welcome: "LocalPingu-க்கு வரவேற்கிறோம்", welcomeText: "விருந்தினரை புரிந்துகொள்ளுங்கள், நம்பிக்கையுடன் பதிலளியுங்கள், வணிக அறிவை ஒரே இடத்தில் வையுங்கள்.", continue: "தொடர்க", back: "பின்",
     chooseApp: "ஆப் மொழியைத் தேர்வு செய்யவும்", chooseAppText: "பின்னர் அமைப்புகளில் மாற்றலாம்.", chooseLocal: "எந்த மொழியை பேசுகிறீர்கள்?", chooseLocalText: "விருந்தினர் ஆங்கிலம் பேசுகிறார்கள். LocalPingu உங்களுக்காக மொழிபெயர்க்கும்.",
@@ -238,7 +214,7 @@ const UI = {
     insights: "Ushauri muhimu", allCaught: "Umeona yote", profileAlert: "Kamilisha wasifu wako wa Google", profileAlertText: "Wasifu kamili husaidia LocalPingu kujibu wageni kwa usahihi.",
     demand: "Mahitaji yanaongezeka", demandText: "Ijumaa na Jumamosi zinapokea maombi mengi zaidi.", priceAlert: "Orodha ya bei tayari", priceAlertText: "Bei zilizohifadhiwa sasa zinaweza kutumika kwenye majibu.",
     appLanguage: "Lugha ya programu", localLanguage: "Lugha yako", preferences: "Mapendeleo", currency: "Sarafu", reset: "Weka upya programu", resetText: "Anzisha upya jaribio na usanidi kwenye kifaa hiki.",
-    suggestions: ["Ongeza safari ya kayak 250000", "Badilisha kifungua kinywa kuwa 60000", "Andaa jibu kwa mgeni"],
+    suggestions: ASSISTANT_SUGGESTIONS,
     confirmReset: "Weka upya LocalPingu?", confirmResetText: "Hii hufuta mapendeleo ya jaribio kwenye kifaa hiki. Data yako ya biashara inasalama.", cancel: "Ghairi", confirm: "Weka upya",
     welcome: "Karibu LocalPingu", welcomeText: "Fahamu wageni, jibu kwa uhakika, na uhifadhi maarifa ya biashara mahali pamoja.", continue: "Endelea", back: "Nyuma",
     chooseApp: "Chagua lugha ya programu", chooseAppText: "Unaweza kuibadilisha baadaye kwenye Mipangilio.", chooseLocal: "Unazungumza lugha gani?", chooseLocalText: "Wageni wanazungumza Kiingereza. LocalPingu inatafsiri kwa ajili yako.",
@@ -255,7 +231,7 @@ const UI = {
     insights: "Thông tin hữu ích", allCaught: "Bạn đã xem hết", profileAlert: "Hoàn tất hồ sơ Google", profileAlertText: "Hồ sơ đầy đủ giúp LocalPingu trả lời khách chính xác.",
     demand: "Nhu cầu đang tăng", demandText: "Thứ Sáu và Thứ Bảy nhận nhiều yêu cầu nhất.", priceAlert: "Danh sách giá sẵn sàng", priceAlertText: "Giá đã lưu giờ có thể dùng trong bản nháp trả lời.",
     appLanguage: "Ngôn ngữ ứng dụng", localLanguage: "Ngôn ngữ của bạn", preferences: "Tùy chọn", currency: "Tiền tệ", reset: "Đặt lại ứng dụng", resetText: "Khởi động lại demo và hướng dẫn trên thiết bị này.",
-    suggestions: ["Thêm tour chèo kayak 250000", "Đổi bữa sáng thành 60000", "Soạn trả lời cho khách"],
+    suggestions: ASSISTANT_SUGGESTIONS,
     confirmReset: "Đặt lại LocalPingu?", confirmResetText: "Thao tác này xóa tùy chọn demo trên thiết bị. Dữ liệu kinh doanh của bạn vẫn an toàn.", cancel: "Hủy", confirm: "Đặt lại",
     welcome: "Chào mừng đến với LocalPingu", welcomeText: "Hiểu khách, trả lời tự tin và giữ kiến thức kinh doanh tại một nơi.", continue: "Tiếp tục", back: "Quay lại",
     chooseApp: "Chọn ngôn ngữ ứng dụng", chooseAppText: "Bạn có thể đổi sau trong Cài đặt.", chooseLocal: "Bạn nói ngôn ngữ nào?", chooseLocalText: "Khách nói tiếng Anh. LocalPingu dịch giúp bạn.",
@@ -272,7 +248,7 @@ const UI = {
     insights: "ข้อมูลที่เป็นประโยชน์", allCaught: "ดูครบแล้ว", profileAlert: "ทำโปรไฟล์ Google ให้สมบูรณ์", profileAlertText: "โปรไฟล์ที่ครบช่วย LocalPingu ตอบแขกได้แม่นยำ",
     demand: "ความต้องการเพิ่มขึ้น", demandText: "วันศุกร์และเสาร์มีคำขอมากที่สุด", priceAlert: "ราคาพร้อมแล้ว", priceAlertText: "ราคาที่บันทึกไว้ใช้ในร่างคำตอบได้แล้ว",
     appLanguage: "ภาษาของแอป", localLanguage: "ภาษาของคุณ", preferences: "การตั้งค่าภาษา", currency: "สกุลเงิน", reset: "รีเซ็ตแอป", resetText: "เริ่มเดโมและการตั้งค่าใหม่บนอุปกรณ์นี้",
-    suggestions: ["เพิ่มทัวร์คายัค 250000", "เปลี่ยนอาหารเช้าเป็น 60000", "ร่างตอบแขก"],
+    suggestions: ASSISTANT_SUGGESTIONS,
     confirmReset: "รีเซ็ต LocalPingu?", confirmResetText: "จะลบการตั้งค่าเดโมบนอุปกรณ์นี้ ข้อมูลธุรกิจของคุณปลอดภัย", cancel: "ยกเลิก", confirm: "รีเซ็ต",
     welcome: "ยินดีต้อนรับสู่ LocalPingu", welcomeText: "เข้าใจแขก ตอบอย่างมั่นใจ และเก็บข้อมูลธุรกิจไว้ที่เดียว", continue: "ต่อไป", back: "ย้อนกลับ",
     chooseApp: "เลือกภาษาของแอป", chooseAppText: "เปลี่ยนภายหลังได้ในการตั้งค่า", chooseLocal: "คุณพูดภาษาอะไร?", chooseLocalText: "แขกพูดภาษาอังกฤษ LocalPingu แปลให้คุณ",
@@ -289,7 +265,7 @@ const UI = {
     insights: "معلومات مفيدة", allCaught: "شاهدت كل شيء", profileAlert: "أكمل ملفك على Google", profileAlertText: "الملف الكامل يساعد LocalPingu على الرد على الضيوف بدقة.",
     demand: "الطلب يزداد", demandText: "الجمعة والسبت تحصلان على معظم الطلبات.", priceAlert: "قائمة الأسعار جاهزة", priceAlertText: "الأسعار المحفوظة يمكن استخدامها الآن في مسودات الردود.",
     appLanguage: "لغة التطبيق", localLanguage: "لغتك", preferences: "التفضيلات", currency: "العملة", reset: "إعادة تعيين التطبيق", resetText: "إعادة تشغيل العرض التجريبي والإعداد على هذا الجهاز.",
-    suggestions: ["أضف جولة كاياك بـ 250000", "غيّر الإفطار إلى 60000", "مسودة رد للضيف"],
+    suggestions: ASSISTANT_SUGGESTIONS,
     confirmReset: "إعادة تعيين LocalPingu؟", confirmResetText: "يؤدي هذا إلى مسح تفضيلات العرض التجريبي على هذا الجهاز. بيانات عملك تبقى آمنة.", cancel: "إلغاء", confirm: "إعادة تعيين",
     welcome: "مرحباً بك في LocalPingu", welcomeText: "افهم الضيوف، ورد بثقة، واحتفظ بمعرفة عملك في مكان واحد.", continue: "متابعة", back: "رجوع",
     chooseApp: "اختر لغة التطبيق", chooseAppText: "يمكنك تغييرها لاحقاً في الإعدادات.", chooseLocal: "أي لغة تتحدث؟", chooseLocalText: "الضيوف يتحدثون الإنجليزية. LocalPingu يترجم لك.",
@@ -306,7 +282,7 @@ const UI = {
     insights: "Conseils utiles", allCaught: "Vous êtes à jour", profileAlert: "Complétez votre profil Google", profileAlertText: "Un profil complet aide LocalPingu à répondre aux clients avec précision.",
     demand: "La demande augmente", demandText: "Vendredi et samedi reçoivent le plus de demandes.", priceAlert: "Liste de prix prête", priceAlertText: "Vos prix enregistrés peuvent maintenant être utilisés dans les brouillons de réponses.",
     appLanguage: "Langue de l'application", localLanguage: "Votre langue", preferences: "Préférences", currency: "Devise", reset: "Réinitialiser l'application", resetText: "Redémarrer la démo et l'introduction sur cet appareil.",
-    suggestions: ["Ajouter kayak pour 250000", "Modifier le petit-déjeuner à 60000", "Rédiger une réponse client"],
+    suggestions: ASSISTANT_SUGGESTIONS,
     confirmReset: "Réinitialiser LocalPingu ?", confirmResetText: "Les préférences de démo sont effacées sur cet appareil. Vos données d'entreprise restent en sécurité.", cancel: "Annuler", confirm: "Réinitialiser",
     welcome: "Bienvenue sur LocalPingu", welcomeText: "Comprenez les clients, répondez avec assurance et gardez vos données d'entreprise au même endroit.", continue: "Continuer", back: "Retour",
     chooseApp: "Choisissez la langue de l'application", chooseAppText: "Vous pourrez la modifier plus tard dans les Réglages.", chooseLocal: "Quelle langue parlez-vous ?", chooseLocalText: "Les clients parlent anglais. LocalPingu traduit pour vous.",
@@ -323,7 +299,7 @@ const UI = {
     insights: "Consejos útiles", allCaught: "Estás al día", profileAlert: "Completa tu perfil de Google", profileAlertText: "Un perfil completo ayuda a LocalPingu a responder a los huéspedes con precisión.",
     demand: "La demanda aumenta", demandText: "Viernes y sábado reciben la mayoría de solicitudes.", priceAlert: "Lista de precios lista", priceAlertText: "Tus precios guardados ya se pueden usar en borradores de respuestas.",
     appLanguage: "Idioma de la aplicación", localLanguage: "Tu idioma", preferences: "Preferencias", currency: "Moneda", reset: "Restablecer la aplicación", resetText: "Reiniciar la demo y la configuración en este dispositivo.",
-    suggestions: ["Añadir tour en kayak por 250000", "Cambiar desayuno a 60000", "Borrador de respuesta para huésped"],
+    suggestions: ASSISTANT_SUGGESTIONS,
     confirmReset: "¿Restablecer LocalPingu?", confirmResetText: "Esto borra las preferencias de demo en este dispositivo. Tus datos del negocio quedan a salvo.", cancel: "Cancelar", confirm: "Restablecer",
     welcome: "Bienvenido a LocalPingu", welcomeText: "Entiende a los huéspedes, responde con seguridad y mantén tu información del negocio en un solo lugar.", continue: "Continuar", back: "Atrás",
     chooseApp: "Elige el idioma de la aplicación", chooseAppText: "Puedes cambiarlo más tarde en Ajustes.", chooseLocal: "¿Qué idioma hablas?", chooseLocalText: "Los huéspedes hablan inglés. LocalPingu traduce por ti.",
@@ -347,13 +323,15 @@ function blankProfile(language: LanguageCode): BusinessProfile {
   return { id: "main", language, name: "", owner: "", description: "", openingHours: "", service: "", price: null, currency: "IDR", checkIn: "", capacity: null, location: "", allergyPolicy: "", cancellationPolicy: "", updatedAt: new Date().toISOString() };
 }
 const CURRENCIES = ["USD", "TZS", "IDR", "EUR", "SGD", "MYR", "AUD", "GBP"];
+const DEFAULT_TAB: Tab = "speak";
+const DEFAULT_TRANSLATE_MODE: "voice" | "text" = "voice";
 const APP_LANGUAGE_OPTIONS: { code: AppLanguage; label: string }[] = [
   { code: "en", label: "English" }, { code: "de", label: "Deutsch" }, { code: "id", label: "Bahasa Indonesia" }, { code: "bn", label: "বাংলা" }, { code: "hi", label: "हिन्दी" }, { code: "ta", label: "தமிழ்" }, { code: "sw", label: "Kiswahili" }, { code: "vi", label: "Tiếng Việt" }, { code: "th", label: "ไทย" }, { code: "ar", label: "العربية" }, { code: "fr", label: "Français" }, { code: "es", label: "Español" },
 ];
 
 
 export default function ZipFrontend() {
-  const [tab, setTab] = useState<Tab>("speak");
+  const [tab, setTab] = useState<Tab>(DEFAULT_TAB);
   const [utilityView, setUtilityView] = useState<UtilityView>(null);
   const [appLanguage, setAppLanguage] = useState<AppLanguage>("en");
   const [onboardingComplete, setOnboardingComplete] = useState(false);
@@ -364,7 +342,7 @@ export default function ZipFrontend() {
   const [speakTranslation, setSpeakTranslation] = useState("");
   const [speakBusy, setSpeakBusy] = useState(false);
   const [speakNotice, setSpeakNotice] = useState("");
-  const [translateMode, setTranslateMode] = useState<"voice" | "text">("text");
+  const [translateMode, setTranslateMode] = useState<"voice" | "text">(DEFAULT_TRANSLATE_MODE);
   const [micMuted, setMicMuted] = useState(false);
   const [recording, setRecording] = useState(false);
   const [speechReady, setSpeechReady] = useState(false);
@@ -446,6 +424,15 @@ export default function ZipFrontend() {
   }, []);
 
   useEffect(() => {
+    if (DEMO_NEEDS_RESET) {
+      setAppLanguage("en");
+      setLocalLanguage("Kiswahili");
+      setCurrency("USD");
+      setOnboardingBusiness(NOOR_PROFILE.name);
+      setOnboardingStep(0);
+      setOnboardingComplete(false);
+      return;
+    }
     const storedLanguage = window.localStorage.getItem("lokalpingu-app-language");
     const storedLocal = window.localStorage.getItem("lokalpingu-local-language");
     const storedCurrency = window.localStorage.getItem("lokalpingu-currency");
@@ -500,6 +487,10 @@ export default function ZipFrontend() {
 
   async function downloadReversePack() {
     const selected = localLanguage;
+    if (!supportsReverseTranslation(languageCode(selected))) {
+      setPackNotice(`${selected} to English is unavailable because this language model did not pass translation checks.`);
+      return;
+    }
     setPackBusy(true);
     setPackNotice(`Loading ${selected} to English model from this app…`);
     traceModel("OPUS-MT", "run", `Loading ${selected} → English language pack`);
@@ -523,6 +514,10 @@ export default function ZipFrontend() {
   async function translateText() {
     if (!speakText.trim()) return;
     const toEnglish = textInputLanguage !== "English";
+    if (toEnglish && !supportsReverseTranslation(languageCode(localLanguage))) {
+      setSpeakNotice(`${localLanguage} to English is unavailable because this language model did not pass translation checks.`);
+      return;
+    }
     const selectedPackReady = toEnglish ? reversePackReady : packReady;
     if (!selectedPackReady) { setSpeakNotice("Download the selected offline model first."); return; }
     const selected = localLanguage;
@@ -582,13 +577,17 @@ export default function ZipFrontend() {
     const speechStarted = performance.now();
     try {
       const audio = await decodeRecordedAudio(blob);
-      if (audio.length < 3_200) throw new Error("Recording was too short. Speak for at least one second.");
+      if (audio.length < 16_000) throw new Error("Recording was too short. Speak for at least one second.");
       await simulateDeviceLatency(1_200);
       const transcript = await transcribeAudio(audio, whisperLanguage(inputLanguage));
       traceModel("Whisper Tiny q8", "output", `${Math.round(performance.now() - speechStarted)} ms · Transcript: “${transcript.slice(0, 180)}”`);
       setSpeakText(transcript);
       setSpeakTranslation("");
       const toEnglish = inputLanguage !== "English";
+      if (toEnglish && !supportsReverseTranslation(languageCode(localLanguage))) {
+        setSpeakNotice(`Transcript ready. ${localLanguage} to English is unavailable because this language model did not pass translation checks.`);
+        return;
+      }
       const translationReady = toEnglish ? reversePackReady : packReady;
       if (!translationReady) {
         setSpeakNotice(`Transcript ready. Download the ${toEnglish ? `${localLanguage} to English` : `English to ${localLanguage}`} translation model.`);
@@ -653,9 +652,23 @@ export default function ZipFrontend() {
   }
 
   async function finishOnboarding() {
-    const next = { ...profile, name: onboardingBusiness.trim(), language: languageCode(localLanguage), currency, updatedAt: new Date().toISOString() };
+    const next = DEMO_RUN_ID
+      ? { ...NOOR_PROFILE, updatedAt: new Date().toISOString() }
+      : { ...profile, name: onboardingBusiness.trim(), language: languageCode(localLanguage), currency, updatedAt: new Date().toISOString() };
     try {
-      await saveProfile(next);
+      if (DEMO_RUN_ID) {
+        const nextProducts = NOOR_PRODUCTS.map((item) => ({ ...item }));
+        const nextPrices = NOOR_PRICES.map((item) => ({ ...item }));
+        await Promise.all([saveProfile(next), replaceCatalog(nextProducts, nextPrices)]);
+        setProducts(nextProducts);
+        setPrices(nextPrices);
+        setLocalLanguage("Kiswahili");
+        setCurrency("USD");
+        window.localStorage.setItem("lokalpingu-local-language", "Kiswahili");
+        window.localStorage.setItem("lokalpingu-currency", "USD");
+      } else {
+        await saveProfile(next);
+      }
       setProfile(next);
       setBusinessName(next.name || "Your business");
       setBusinessAddress(next.location || "Saved on this device");
@@ -664,6 +677,9 @@ export default function ZipFrontend() {
       return;
     }
     window.localStorage.setItem("lokalpingu-onboarding", "complete");
+    setTab(DEFAULT_TAB);
+    setTranslateMode(DEFAULT_TRANSLATE_MODE);
+    setUtilityView(null);
     setOnboardingComplete(true);
     setOnboardingStep(0);
   }
@@ -677,6 +693,8 @@ export default function ZipFrontend() {
     setLocalLanguage("Kiswahili");
     setCurrency("USD");
     setOnboardingBusiness(NOOR_PROFILE.name);
+    setTab(DEFAULT_TAB);
+    setTranslateMode(DEFAULT_TRANSLATE_MODE);
     setUtilityView(null);
     setResetConfirm(false);
     setOnboardingStep(0);
@@ -687,10 +705,12 @@ export default function ZipFrontend() {
     let alive = true;
     async function loadBusiness() {
       try {
-      let [savedProfile, storedProducts, storedPrices, storedBookings] = await Promise.all([getProfile(), listProducts(), listPrices(), listBookings()]);
-      if (!alive) return;
-      let nextProducts = storedProducts;
-      let nextPrices = storedPrices;
+        await prepareDemoLaunch();
+        if (!alive) return;
+        let [savedProfile, storedProducts, storedPrices, storedBookings] = await Promise.all([getProfile(), listProducts(), listPrices(), listBookings()]);
+        if (!alive) return;
+        let nextProducts = storedProducts;
+        let nextPrices = storedPrices;
       const oldProducts = readLocal<Product>(LOCAL_PRODUCTS_KEY);
       const oldPrices = readLocal<PriceItem>(LOCAL_PRICES_KEY);
       if ((!storedProducts.length && oldProducts.length) || (!storedPrices.length && oldPrices.length)) {
@@ -704,16 +724,21 @@ export default function ZipFrontend() {
       }
       const profileIsEmpty = !savedProfile || (!savedProfile.name && !savedProfile.service && !savedProfile.location);
       const demoNotSeeded = !window.localStorage.getItem(DEMO_SEED_KEY);
-      if (profileIsEmpty && !nextProducts.length && !nextPrices.length && demoNotSeeded) {
-        savedProfile = { ...NOOR_PROFILE, updatedAt: new Date().toISOString() };
-        nextProducts = NOOR_PRODUCTS.map((item) => ({ ...item }));
-        nextPrices = NOOR_PRICES.map((item) => ({ ...item }));
-        await Promise.all([saveProfile(savedProfile), replaceCatalog(nextProducts, nextPrices)]);
+      if (demoNotSeeded) {
+        if (!nextProducts.length) nextProducts = NOOR_PRODUCTS.map((item) => ({ ...item }));
+        if (!nextPrices.length) nextPrices = NOOR_PRICES.map((item) => ({ ...item }));
+        if (profileIsEmpty) savedProfile = { ...NOOR_PROFILE, updatedAt: new Date().toISOString() };
+        await Promise.all([
+          ...(profileIsEmpty && savedProfile ? [saveProfile(savedProfile)] : []),
+          replaceCatalog(nextProducts, nextPrices),
+        ]);
         window.localStorage.setItem(DEMO_SEED_KEY, "seeded");
-        window.localStorage.setItem("lokalpingu-local-language", "Kiswahili");
-        window.localStorage.setItem("lokalpingu-currency", "USD");
-        setLocalLanguage("Kiswahili");
-        setCurrency("USD");
+        if (profileIsEmpty) {
+          window.localStorage.setItem("lokalpingu-local-language", "Kiswahili");
+          window.localStorage.setItem("lokalpingu-currency", "USD");
+          setLocalLanguage("Kiswahili");
+          setCurrency("USD");
+        }
       }
       if (savedProfile) {
         const completeProfile = { ...blankProfile(savedProfile.language), ...savedProfile };
@@ -794,24 +819,36 @@ export default function ZipFrontend() {
     if (!text) return;
     setAssistantMessages((msgs) => [...msgs, { role: "user", text }]);
     setBusy(true);
-    traceModel("Local Assistant · rules", "run", `Input: “${text.slice(0, 140)}”`);
+    traceModel("Intent Mini v2 · Business Memory", "run", `Input: “${text.slice(0, 140)}”`);
     const started = performance.now();
     try {
       await simulateDeviceLatency(450);
-      const [savedProducts, savedPrices] = await Promise.all([listProducts(), listPrices()]);
-      const result = runLocalAssistant(text, appLanguage, savedProducts, savedPrices, businessName, currency);
+      const [savedProducts, savedPrices, savedProfile] = await Promise.all([listProducts(), listPrices(), getProfile()]);
+      const newestGuestMessage = guest.threads[0]?.messages.filter((item) => item.from === "guest").at(-1)?.text;
+      const result = runLocalAssistant(text, {
+        language: appLanguage,
+        products: savedProducts,
+        prices: savedPrices,
+        profile: savedProfile ?? profile,
+        currency,
+        newestGuestMessage,
+        approvedInteractions: bookings.length,
+        unreadDemoChats: guest.unreadTotal,
+      });
       if (result.products !== savedProducts || result.prices !== savedPrices) await replaceCatalog(result.products, result.prices);
       setAssistantMessages((msgs) => [...msgs, { role: "assistant", text: result.reply }]);
-      traceModel("Local Assistant · rules", "output", `${Math.round(performance.now() - started)} ms · Reply: “${result.reply.slice(0, 180)}”`);
+      traceModel("Intent Mini v2 · Business Memory", "output", `${Math.round(performance.now() - started)} ms · Reply: “${result.reply.slice(0, 180)}”`);
       setProducts(result.products); setPrices(result.prices);
       setMessage("");
     } catch (error) {
       setAssistantMessages((msgs) => [...msgs, { role: "assistant", text: t.assistantFailed }]);
-      traceModel("Local Assistant · rules", "error", error instanceof Error ? error.message : t.assistantFailed);
+      traceModel("Intent Mini v2 · Business Memory", "error", error instanceof Error ? error.message : t.assistantFailed);
     } finally {
       setBusy(false);
     }
   }
+
+  const translationDetails = speakTranslation ? criticalDetails(speakText) : [];
 
   return (
     <div className={`min-h-dvh bg-app-shell text-foreground sm:grid sm:place-content-center sm:p-5 lg:gap-6 ${modelToolsOpen ? "lg:grid-cols-[430px_minmax(420px,560px)]" : "lg:grid-cols-[430px_3.5rem]"}`}>
@@ -827,7 +864,7 @@ export default function ZipFrontend() {
         </header>}
 
         <main className={`min-h-0 flex-1 overflow-hidden px-5 pb-2 ${onboardingComplete ? "pt-2" : "pt-[max(1rem,env(safe-area-inset-top))]"}`}>
-          {!onboardingComplete ? <Onboarding step={onboardingStep} setStep={setOnboardingStep} appLanguage={appLanguage} setAppLanguage={updateAppLanguage} localLanguage={localLanguage} setLocalLanguage={updateLocalLanguage} businessName={onboardingBusiness} setBusinessName={setOnboardingBusiness} finish={() => void finishOnboarding()} t={t} /> : utilityView === "notifications" ? <NotificationsView t={t} /> : utilityView === "settings" ? <SettingsView t={t} appLanguage={appLanguage} setAppLanguage={updateAppLanguage} localLanguage={localLanguage} setLocalLanguage={updateLocalLanguage} packReady={packReady} packBusy={packBusy} packNotice={packNotice} downloadPack={downloadPack} deleteBusiness={() => void deleteBusiness()} currency={currency} setCurrency={updateCurrency} resetConfirm={resetConfirm} setResetConfirm={setResetConfirm} resetApp={resetApp} /> : <>
+          {!onboardingComplete ? <Onboarding step={onboardingStep} setStep={setOnboardingStep} appLanguage={appLanguage} setAppLanguage={updateAppLanguage} localLanguage={localLanguage} setLocalLanguage={updateLocalLanguage} businessName={onboardingBusiness} setBusinessName={setOnboardingBusiness} demoMode={Boolean(DEMO_RUN_ID)} finish={() => void finishOnboarding()} t={t} /> : utilityView === "notifications" ? <NotificationsView t={t} /> : utilityView === "settings" ? <SettingsView t={t} appLanguage={appLanguage} setAppLanguage={updateAppLanguage} localLanguage={localLanguage} setLocalLanguage={updateLocalLanguage} packReady={packReady} packBusy={packBusy} packNotice={packNotice} downloadPack={downloadPack} deleteBusiness={() => void deleteBusiness()} currency={currency} setCurrency={updateCurrency} resetConfirm={resetConfirm} setResetConfirm={setResetConfirm} resetApp={resetApp} /> : <>
           <section className={`${tab === "assistant" ? "flex animate-in fade-in slide-in-from-bottom-1" : "hidden"} h-full min-h-0 flex-col`} aria-label={t.assistant}>
               <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-2">
                 {assistantMessages.length === 0 && !busy && <p className="mt-6 text-center text-sm font-semibold text-muted-foreground">{t.assistantEmpty}</p>}
@@ -853,12 +890,12 @@ export default function ZipFrontend() {
                   <Button variant="outline" disabled={recording || speakBusy} onClick={() => { setSpeakInputOpen((open) => !open); setLanguageOpen(false); }} className="h-auto w-full justify-between rounded-2xl border-2 bg-card px-3 py-2.5 text-left shadow-card">
                     <span className="min-w-0"><span className="block text-xs font-semibold text-muted-foreground">{t.speakInput}</span><span className="block truncate font-bold">{speakInputLanguage}</span></span><ChevronDown className={`size-5 shrink-0 text-muted-foreground transition-transform ${speakInputOpen ? "rotate-180" : ""}`} />
                   </Button>
-                  {speakInputOpen && <div className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-20 max-h-56 overflow-y-auto rounded-2xl border-2 border-border bg-card p-2 shadow-app">{["English", ...LOCAL_LANGUAGES].map((language) => <Button key={language} variant="ghost" onClick={() => { setSpeakInputLanguage(language); if (language !== "English") updateLocalLanguage(language); setSpeakInputOpen(false); setSpeakText(""); setSpeakTranslation(""); }} className="w-full justify-between rounded-xl">{language}<Check className={`size-4 ${speakInputLanguage === language ? "opacity-100 text-primary" : "opacity-0"}`} /></Button>)}</div>}
+                  {speakInputOpen && <div className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-20 max-h-56 overflow-y-auto rounded-2xl border-2 border-border bg-card p-2 shadow-app">{["English", ...LOCAL_LANGUAGES].map((language) => <Button key={language} variant="ghost" onClick={() => { setSpeakInputLanguage(language); if (language !== "English") updateLocalLanguage(language); setSpeakInputOpen(false); setSpeakText(""); setSpeakTranslation(""); setSpeakNotice(language !== "English" && !supportsReverseTranslation(languageCode(language)) ? `${language} to English is unavailable because this language model did not pass translation checks.` : ""); }} className="w-full justify-between rounded-xl">{language}<Check className={`size-4 ${speakInputLanguage === language ? "opacity-100 text-primary" : "opacity-0"}`} /></Button>)}</div>}
                 </div> : <div className="relative">
                   <Button variant="outline" onClick={() => { setTextInputOpen((open) => !open); setLanguageOpen(false); }} className="h-auto w-full justify-between rounded-2xl border-2 bg-card px-3 py-2.5 text-left shadow-card">
                     <span className="min-w-0"><span className="block text-xs font-semibold text-muted-foreground">{t.speakInput}</span><span className="block truncate font-bold">{textInputLanguage}</span></span><ChevronDown className={`size-5 shrink-0 text-muted-foreground transition-transform ${textInputOpen ? "rotate-180" : ""}`} />
                   </Button>
-                  {textInputOpen && <div className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-20 max-h-56 overflow-y-auto rounded-2xl border-2 border-border bg-card p-2 shadow-app">{["English", ...LOCAL_LANGUAGES].map((language) => <Button key={language} variant="ghost" onClick={() => { setTextInputLanguage(language); if (language !== "English") updateLocalLanguage(language); setTextInputOpen(false); setSpeakText(""); setSpeakTranslation(""); }} className="w-full justify-between rounded-xl">{language}<Check className={`size-4 ${textInputLanguage === language ? "opacity-100 text-primary" : "opacity-0"}`} /></Button>)}</div>}
+                  {textInputOpen && <div className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-20 max-h-56 overflow-y-auto rounded-2xl border-2 border-border bg-card p-2 shadow-app">{["English", ...LOCAL_LANGUAGES].map((language) => <Button key={language} variant="ghost" onClick={() => { setTextInputLanguage(language); if (language !== "English") updateLocalLanguage(language); setTextInputOpen(false); setSpeakText(""); setSpeakTranslation(""); setSpeakNotice(language !== "English" && !supportsReverseTranslation(languageCode(language)) ? `${language} to English is unavailable because this language model did not pass translation checks.` : ""); }} className="w-full justify-between rounded-xl">{language}<Check className={`size-4 ${textInputLanguage === language ? "opacity-100 text-primary" : "opacity-0"}`} /></Button>)}</div>}
                 </div>}
                 {(translateMode === "text" ? textInputLanguage !== "English" : speakInputLanguage !== "English") ? <div className="rounded-2xl border-2 border-border bg-card px-3 py-2.5 shadow-card"><span className="block text-xs font-semibold text-muted-foreground">{t.speakOutput}</span><span className="block font-bold">English</span></div> : <div className="relative">
                   <Button variant="outline" onClick={() => { setLanguageOpen((open) => !open); setSpeakInputOpen(false); setTextInputOpen(false); }} className="h-auto w-full justify-between rounded-2xl border-2 bg-card px-3 py-2.5 text-left shadow-card">
@@ -887,17 +924,19 @@ export default function ZipFrontend() {
                   <p className="mt-2 max-w-xs text-sm font-medium text-muted-foreground">Whisper Tiny · local ONNX · audio stays on this device</p>
                 </div>
                 {!speechReady && <Button type="button" onClick={() => void downloadSpeechPack()} disabled={speechModelBusy} variant="outline" className="mb-2 rounded-xl border-2"><Download className="size-4" />{speechModelBusy ? "Loading speech model…" : "Download offline speech model (~44 MiB)"}</Button>}
-                {speechReady && !(speakInputLanguage === "English" ? packReady : reversePackReady) && <Button type="button" onClick={() => void (speakInputLanguage === "English" ? downloadPack() : downloadReversePack())} disabled={packBusy} variant="outline" className="mb-2 rounded-xl border-2"><Download className="size-4" />{packBusy ? "Loading translation model…" : `Download ${speakInputLanguage === "English" ? `English to ${localLanguage}` : `${localLanguage} to English`} model`}</Button>}
+                {speakInputLanguage !== "English" && !supportsReverseTranslation(languageCode(localLanguage)) && <p role="status" className="mb-2 text-xs font-medium text-warning-foreground">{localLanguage} to English is unavailable because this language model did not pass translation checks.</p>}
+                {speechReady && (speakInputLanguage === "English" || supportsReverseTranslation(languageCode(localLanguage))) && !(speakInputLanguage === "English" ? packReady : reversePackReady) && <Button type="button" onClick={() => void (speakInputLanguage === "English" ? downloadPack() : downloadReversePack())} disabled={packBusy} variant="outline" className="mb-2 rounded-xl border-2"><Download className="size-4" />{packBusy ? "Loading translation model…" : `Download ${speakInputLanguage === "English" ? `English to ${localLanguage}` : `${localLanguage} to English`} model`}</Button>}
                 {speakText && <div className="mb-2 rounded-2xl border-2 border-border bg-card p-3 text-sm"><strong>{speakInputLanguage}</strong><p className="mt-1">{speakText}</p></div>}
-                {speakTranslation && <div className="mb-2 rounded-2xl border-2 border-border bg-card p-3 text-sm"><strong>{speakInputLanguage === "English" ? localLanguage : "English"}</strong><p className="mt-1">{speakTranslation}</p></div>}
+                {speakTranslation && <div className="mb-2 rounded-2xl border-2 border-border bg-card p-3 text-sm"><strong>{speakInputLanguage === "English" ? localLanguage : "English"}</strong><p className="mt-1">{speakTranslation}</p>{speakInputLanguage === "English" && translationDetails.length > 0 && <p className="mt-2 border-t-2 border-border pt-2 text-xs text-warning-foreground"><strong>Keep exact from original:</strong> {translationDetails.join("; ")}.</p>}</div>}
                 {speakNotice && <p role="status" className="mb-2 text-xs font-medium text-muted-foreground">{speakNotice}</p>}
                 <Button type="button" variant="outline" aria-pressed={micMuted} onClick={() => { if (recording) stopRecording(); setMicMuted((muted) => !muted); }} className={`mb-1 h-12 w-full rounded-xl border-2 ${micMuted ? "bg-muted text-muted-foreground hover:bg-muted hover:text-muted-foreground" : "bg-card text-foreground hover:bg-primary-soft hover:text-primary"}`}>{micMuted ? <Mic className="size-5" /> : <MicOff className="size-5" />}{micMuted ? (appLanguage === "de" ? "Stummschaltung aufheben" : "Unmute") : (appLanguage === "de" ? "Stummschalten" : "Mute")}</Button>
               </div> : <div role="tabpanel" className="mt-4 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-2">
                 <p className="font-display text-xl font-bold">{t.translate}</p>
-                <textarea value={speakText} onChange={(event) => { setSpeakText(event.target.value); setSpeakTranslation(""); }} maxLength={600} rows={5} placeholder="Enter an English guest message…" className="w-full resize-none rounded-2xl border-2 border-border bg-card p-3 text-sm outline-none focus:border-primary" />
-                {!(textInputLanguage === "English" ? packReady : reversePackReady) && <Button type="button" onClick={() => void (textInputLanguage === "English" ? downloadPack() : downloadReversePack())} disabled={packBusy} variant="outline" className="rounded-xl border-2"><Download className="size-4" />{packBusy ? "Loading model…" : `Download ${textInputLanguage === "English" ? `English to ${localLanguage}` : `${localLanguage} to English`} model`}</Button>}
-                <Button type="button" onClick={() => void translateText()} disabled={speakBusy || !speakText.trim() || !(textInputLanguage === "English" ? packReady : reversePackReady)} className="rounded-xl"><Languages className="size-4" />{speakBusy ? "Translating…" : "Translate on this device"}</Button>
-                {speakTranslation && <div className="rounded-2xl border-2 border-border bg-card p-3 text-sm"><strong>{textInputLanguage === "English" ? localLanguage : "English"}</strong><p className="mt-1">{speakTranslation}</p></div>}
+                <textarea value={speakText} onChange={(event) => { setSpeakText(event.target.value); setSpeakTranslation(""); setSpeakNotice(""); }} maxLength={600} rows={5} placeholder={textInputLanguage === "English" ? "Enter an English guest message…" : `Enter a ${textInputLanguage} guest message…`} className="w-full resize-none rounded-2xl border-2 border-border bg-card p-3 text-sm outline-none focus:border-primary" />
+                {textInputLanguage !== "English" && !supportsReverseTranslation(languageCode(localLanguage)) && <p role="status" className="text-xs font-medium text-warning-foreground">{localLanguage} to English is unavailable because this language model did not pass translation checks.</p>}
+                {(textInputLanguage === "English" || supportsReverseTranslation(languageCode(localLanguage))) && !(textInputLanguage === "English" ? packReady : reversePackReady) && <Button type="button" onClick={() => void (textInputLanguage === "English" ? downloadPack() : downloadReversePack())} disabled={packBusy} variant="outline" className="rounded-xl border-2"><Download className="size-4" />{packBusy ? "Loading model…" : `Download ${textInputLanguage === "English" ? `English to ${localLanguage}` : `${localLanguage} to English`} model`}</Button>}
+                <Button type="button" onClick={() => void translateText()} disabled={speakBusy || !speakText.trim() || (textInputLanguage !== "English" && !supportsReverseTranslation(languageCode(localLanguage))) || !(textInputLanguage === "English" ? packReady : reversePackReady)} className="rounded-xl"><Languages className="size-4" />{speakBusy ? "Translating…" : "Translate on this device"}</Button>
+                {speakTranslation && <div className="rounded-2xl border-2 border-border bg-card p-3 text-sm"><strong>{textInputLanguage === "English" ? localLanguage : "English"}</strong><p className="mt-1">{speakTranslation}</p>{textInputLanguage === "English" && translationDetails.length > 0 && <p className="mt-2 border-t-2 border-border pt-2 text-xs text-warning-foreground"><strong>Keep exact from original:</strong> {translationDetails.join("; ")}.</p>}</div>}
                 {(speakNotice || packNotice) && <p role="status" className="text-xs font-medium text-muted-foreground">{speakNotice || packNotice}</p>}
               </div>}
             </section>
@@ -961,15 +1000,9 @@ export default function ZipFrontend() {
                   <div className="mt-3 space-y-2">{prices.length === 0 ? <EmptyState icon={<Tag />} text="No prices yet" /> : prices.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl border-2 border-border bg-card p-3 shadow-card"><div><p className="font-bold">{item.label}</p><p className="text-xs font-semibold text-muted-foreground">per {item.unit}</p></div><div className="shrink-0 text-right"><strong className="block text-primary">{money(Number(item.price), item.currency, currency)}</strong>{item.localPrice && item.localCurrency && <span className="text-xs font-bold text-muted-foreground">{item.localCurrency === "TZS" ? "TSh" : item.localCurrency} {item.localPrice.toLocaleString("en-US")}</span>}</div></div>)}</div>
                 </>}
                 {businessView === "kpi" && <>
-                   <p className="mb-2 text-xs font-bold text-warning-foreground">Illustrative demo data. No booking connector is active.</p>
-                  <div className="flex gap-3 rounded-2xl border-2 border-border bg-card p-3 shadow-card"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary"><TrendingUp /></span><div><p className="font-bold">Guest feedback summary</p><p className="mt-0.5 text-sm font-medium text-muted-foreground">Guests love the traditional roasting ritual and fresh lunch. The most common question is how to travel from Ondera Market, so the directions are saved in the fact sheet.</p></div></div>
-                  <div className="mt-3 grid grid-cols-2 gap-3"><Metric icon={<MessageCircle />} label="Requests this month" value="28" change="Demo dataset" /><Metric icon={<Star />} label="Top experience" value="Coffee ritual" change="Guest feedback" /></div>
-                  <div className="mt-3 rounded-2xl border-2 border-border bg-card p-3 shadow-card">
-                    <p className="font-bold">Most common guest languages</p>
-                    <div className="mt-3 space-y-3" aria-label="Guest language distribution">
-                      {[["English", 65], ["German", 20], ["French", 15]].map(([label, value]) => <div key={String(label)}><div className="flex justify-between text-xs font-bold"><span>{label}</span><span>{value}%</span></div><div className="mt-1 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${value}%` }} /></div></div>)}
-                    </div>
-                  </div>
+                   <p className="mb-2 text-xs font-bold text-warning-foreground">Saved local data only. No booking or analytics connector is active.</p>
+                  <div className="flex gap-3 rounded-2xl border-2 border-border bg-card p-3 shadow-card"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary"><TrendingUp /></span><div><p className="font-bold">Performance trends unavailable</p><p className="mt-0.5 text-sm font-medium text-muted-foreground">This offline demo does not collect request volume, guest language or feedback analytics.</p></div></div>
+                  <div className="mt-3 grid grid-cols-2 gap-3"><Metric icon={<Package />} label="Active products" value={String(products.filter((item) => item.active).length)} change="Saved offline" /><Metric icon={<Tag />} label="Active prices" value={String(prices.filter((item) => item.active).length)} change="Saved offline" /><Metric icon={<MessageCircle />} label="Unread demo chats" value={String(guest.unreadTotal)} change="Demo only" /><Metric icon={<Check />} label="Approved interactions" value={String(bookings.length)} change="Saved offline" /></div>
                 </>}
               </div>
             </section>
@@ -1045,7 +1078,7 @@ function LocalPinguWordmark({ className = "" }: { className?: string }) {
   return <span aria-label="LocalPingu" className={`flex items-end whitespace-nowrap font-display font-bold leading-none text-foreground ${className}`}><span>Local</span><PenguinP className="mx-[0.03em] h-[1.08em] w-auto shrink-0" /><span>ingu</span></span>;
 }
 
-function Onboarding({ step, setStep, appLanguage, setAppLanguage, localLanguage, setLocalLanguage, businessName, setBusinessName, finish, t }: { step: number; setStep: (step: number) => void; appLanguage: AppLanguage; setAppLanguage: (language: AppLanguage) => void; localLanguage: string; setLocalLanguage: (language: string) => void; businessName: string; setBusinessName: (name: string) => void; finish: () => void; t: typeof UI.en }) {
+function Onboarding({ step, setStep, appLanguage, setAppLanguage, localLanguage, setLocalLanguage, businessName, setBusinessName, demoMode, finish, t }: { step: number; setStep: (step: number) => void; appLanguage: AppLanguage; setAppLanguage: (language: AppLanguage) => void; localLanguage: string; setLocalLanguage: (language: string) => void; businessName: string; setBusinessName: (name: string) => void; demoMode: boolean; finish: () => void; t: typeof UI.en }) {
   const steps = 5;
   const titles = [t.chooseApp, t.welcome, t.chooseLocal, t.businessSetup, t.ready];
   return <section className="flex h-full flex-col" aria-labelledby="onboarding-title">
@@ -1056,7 +1089,7 @@ function Onboarding({ step, setStep, appLanguage, setAppLanguage, localLanguage,
       {step === 1 && <><div className="mt-2 flex justify-center"><img src={lokalPinguIconAsset.url} alt="LocalPingu Logo" className="size-40 rounded-3xl border-2 border-border bg-background object-contain p-1 shadow-card" /></div><p className="mt-3 text-base font-medium text-muted-foreground">{t.welcomeText}</p><div className="mt-8 grid grid-cols-3 gap-2"><OnboardingFeature icon={<Languages />} label={t.translate} /><OnboardingFeature icon={<MessageCircle />} label={t.chat} /><OnboardingFeature icon={<BriefcaseBusiness />} label={t.business} /></div></>}
       {step === 0 && <><p className="mt-2 text-sm font-medium text-muted-foreground">{t.chooseAppText}</p><div className="mt-5"><label htmlFor="onboarding-app-language" className="text-sm font-bold">{t.appLanguage}</label><select id="onboarding-app-language" value={appLanguage} onChange={(event) => setAppLanguage(event.target.value as AppLanguage)} className="mt-2 h-12 w-full rounded-xl border-2 border-border bg-background px-3 text-base font-semibold outline-none focus:border-primary">{APP_LANGUAGE_OPTIONS.map((option) => <option key={option.code} value={option.code}>{option.label}</option>)}</select></div></>}
       {step === 2 && <><p className="mt-2 text-sm font-medium text-muted-foreground">{t.chooseLocalText}</p><div className="mt-4 grid grid-cols-2 gap-2">{LOCAL_LANGUAGES.map((language) => <ChoiceButton key={language} compact selected={localLanguage === language} onClick={() => setLocalLanguage(language)} title={language} />)}</div></>}
-      {step === 3 && <><p className="mt-2 text-sm font-medium text-muted-foreground">{t.offlineModeShort}</p><label className="mt-5 text-xs font-bold text-muted-foreground" htmlFor="onboarding-business">{t.businessName}</label><Input id="onboarding-business" value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder={t.businessPlace} className="mt-2 h-12 rounded-xl border-2" /><div className="mt-4 flex items-center gap-2 rounded-xl bg-primary-soft p-3 text-sm font-bold text-primary"><ShieldCheck className="size-5" />{t.offlineModeShort}</div></>}
+      {step === 3 && <><p className="mt-2 text-sm font-medium text-muted-foreground">{t.offlineModeShort}</p><label className="mt-5 text-xs font-bold text-muted-foreground" htmlFor="onboarding-business">{t.businessName}</label><Input id="onboarding-business" value={businessName} onChange={(event) => setBusinessName(event.target.value)} readOnly={demoMode} placeholder={t.businessPlace} className="mt-2 h-12 rounded-xl border-2" /><div className="mt-4 flex items-center gap-2 rounded-xl bg-primary-soft p-3 text-sm font-bold text-primary"><ShieldCheck className="size-5" />{t.offlineModeShort}</div></>}
       {step === 4 && <div className="flex flex-1 flex-col items-center justify-center text-center"><div className="grid size-24 place-items-center rounded-full bg-primary-soft text-primary"><Check className="size-12" strokeWidth={3} /></div><p className="mt-5 max-w-xs text-base font-medium text-muted-foreground">{t.offlineModeShort}</p></div>}
     </div>
     <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">{step > 0 ? <Button variant="outline" onClick={() => setStep(step - 1)} className="h-12 rounded-xl border-2 px-5">{t.back}</Button> : <span />}{step < steps - 1 ? <Button onClick={() => setStep(step + 1)} className="h-12 rounded-xl font-bold">{step === 3 && !businessName.trim() ? t.skip : t.continue}</Button> : <Button onClick={finish} className="h-12 rounded-xl font-bold">{t.startApp}</Button>}</div>
@@ -1101,6 +1134,7 @@ function SettingsView({ t, appLanguage, setAppLanguage, localLanguage, setLocalL
           <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
             <span className="rounded-full bg-primary-soft px-2.5 py-1 text-primary">On-device Whisper Tiny</span>
             <span className="rounded-full bg-accent-soft px-2.5 py-1 text-accent">Quantized OPUS-MT</span>
+            <span className="rounded-full bg-primary-soft px-2.5 py-1 text-primary">Tourism Intent Mini v2</span>
             <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">Owner-confirmed local facts</span>
           </div>
           <p className="mt-2 text-xs font-medium text-muted-foreground">Evaluation references: FLORES-200 and MASSIVE are not bundled. OpenStreetMap/Overpass is planned and currently disconnected.</p>

@@ -1,6 +1,6 @@
 import type { BusinessProfile, PriceItem, Product } from './memory';
 
-export const DEMO_SEED_KEY = 'lokalpingu-noor-demo-v1';
+export const DEMO_SEED_KEY = 'lokalpingu-noor-catalog-v2';
 
 export const NOOR_PROFILE: BusinessProfile = {
   id: 'main',

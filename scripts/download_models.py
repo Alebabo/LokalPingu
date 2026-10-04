@@ -19,7 +19,6 @@ REVISION = {
     "Xenova/opus-mt-en-id": "b3b41f654c2fb3286d007dee1da7b0f47fd27d82",
     "Xenova/opus-mt-en-mul": "e57f9759f8e1e9ed97067bfc11e53e1eab63e57e",
     "Xenova/opus-mt-id-en": "c38ef36c843b71177da903442835c3c870975fd6",
-    "Xenova/opus-mt-mul-en": "72a05e47cee89c718a9db4dc70d02fef3bc39de8",
 }
 SPEECH_MODEL = "onnx-community/whisper-tiny"
 SPEECH_REVISION = "ff4177021cc41f7db950912b73ea4fdf7d01d8e7"
