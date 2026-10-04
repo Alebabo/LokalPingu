@@ -77,8 +77,8 @@ export function runLocalAssistant(text: string, context: LocalAssistantContext):
     return {
       reply: localized(
         language,
-        `Saved local data:\n\n• ${activeProducts} active products\n• ${activePrices} active prices\n• ${unreadDemoChats} unread demo chats\n• ${approvedInteractions} approved interactions saved\n\nMonthly trends are unavailable because this offline demo does not collect analytics.`,
-        `Lokal gespeicherte Daten:\n\n• ${activeProducts} aktive Produkte\n• ${activePrices} aktive Preise\n• ${unreadDemoChats} ungelesene Demo-Chats\n• ${approvedInteractions} gespeicherte, freigegebene Interaktionen\n\nMonatliche Trends sind nicht verfügbar, weil diese Offline-Demo keine Analytics erfasst.`,
+        `Saved local data:\n\n• ${activeProducts} active products\n• ${activePrices} active prices\n• ${unreadDemoChats} unread demo chats\n• ${approvedInteractions} approved interactions saved\n\nThis summary uses on-device data. Analytics collection stays off.`,
+        `Lokal gespeicherte Daten:\n\n• ${activeProducts} aktive Produkte\n• ${activePrices} aktive Preise\n• ${unreadDemoChats} ungelesene Demo-Chats\n• ${approvedInteractions} gespeicherte, freigegebene Interaktionen\n\nDiese Zusammenfassung nutzt lokale Daten. Die Analytics-Erfassung bleibt ausgeschaltet.`,
       ),
       products,
       prices,

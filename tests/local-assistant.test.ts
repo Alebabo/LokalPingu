@@ -31,7 +31,7 @@ test('performance response only reports passed local data', () => {
   const result = runLocalAssistant("Evaluate this month's performance", context);
   assert.match(result.reply, /4 active products/);
   assert.match(result.reply, /5 unread demo chats/);
-  assert.match(result.reply, /does not collect analytics/);
+  assert.match(result.reply, /Analytics collection stays off/);
   assert.doesNotMatch(result.reply, /28 guest requests|65%|most praised/i);
 });
 

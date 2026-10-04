@@ -170,9 +170,9 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
     if (shown[message.id]) { setShown((items) => ({ ...items, [message.id]: false })); return; }
     setShown((items) => ({ ...items, [message.id]: true }));
     if (thread.language !== "English") {
-      const unavailable = `No verified offline ${thread.language} → ${language} model is installed.`;
-      setTranslations((items) => ({ ...items, [message.id]: unavailable }));
-      onModelEvent?.("Translation router", "error", unavailable);
+      const guidance = `${thread.language} → ${language} needs a verified offline model.`;
+      setTranslations((items) => ({ ...items, [message.id]: guidance }));
+      onModelEvent?.("Translation router", "error", guidance);
       return;
     }
     if (!packReady) { setTranslations((items) => ({ ...items, [message.id]: "Download this language's offline model in Settings first." })); return; }

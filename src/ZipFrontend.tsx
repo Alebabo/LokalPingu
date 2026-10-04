@@ -488,7 +488,7 @@ export default function ZipFrontend() {
   async function downloadReversePack() {
     const selected = localLanguage;
     if (!supportsReverseTranslation(languageCode(selected))) {
-      setPackNotice(`${selected} to English is unavailable because this language model did not pass translation checks.`);
+      setPackNotice(`${selected} to English stays off because current model results are unreliable.`);
       return;
     }
     setPackBusy(true);
@@ -515,7 +515,7 @@ export default function ZipFrontend() {
     if (!speakText.trim()) return;
     const toEnglish = textInputLanguage !== "English";
     if (toEnglish && !supportsReverseTranslation(languageCode(localLanguage))) {
-      setSpeakNotice(`${localLanguage} to English is unavailable because this language model did not pass translation checks.`);
+      setSpeakNotice(`${localLanguage} to English stays off because current model results are unreliable.`);
       return;
     }
     const selectedPackReady = toEnglish ? reversePackReady : packReady;
@@ -585,7 +585,7 @@ export default function ZipFrontend() {
       setSpeakTranslation("");
       const toEnglish = inputLanguage !== "English";
       if (toEnglish && !supportsReverseTranslation(languageCode(localLanguage))) {
-        setSpeakNotice(`Transcript ready. ${localLanguage} to English is unavailable because this language model did not pass translation checks.`);
+        setSpeakNotice(`Transcript ready. ${localLanguage} to English stays off because current model results are unreliable.`);
         return;
       }
       const translationReady = toEnglish ? reversePackReady : packReady;
@@ -616,7 +616,7 @@ export default function ZipFrontend() {
     if (micMuted || speakBusy || speechModelBusy) return;
     if (!speechReady) { setSpeakNotice("Download the offline speech model first."); return; }
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      setSpeakNotice("Microphone recording is unavailable in this browser.");
+      setSpeakNotice("This browser does not support microphone recording.");
       return;
     }
     try {
@@ -890,12 +890,12 @@ export default function ZipFrontend() {
                   <Button variant="outline" disabled={recording || speakBusy} onClick={() => { setSpeakInputOpen((open) => !open); setLanguageOpen(false); }} className="h-auto w-full justify-between rounded-2xl border-2 bg-card px-3 py-2.5 text-left shadow-card">
                     <span className="min-w-0"><span className="block text-xs font-semibold text-muted-foreground">{t.speakInput}</span><span className="block truncate font-bold">{speakInputLanguage}</span></span><ChevronDown className={`size-5 shrink-0 text-muted-foreground transition-transform ${speakInputOpen ? "rotate-180" : ""}`} />
                   </Button>
-                  {speakInputOpen && <div className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-20 max-h-56 overflow-y-auto rounded-2xl border-2 border-border bg-card p-2 shadow-app">{["English", ...LOCAL_LANGUAGES].map((language) => <Button key={language} variant="ghost" onClick={() => { setSpeakInputLanguage(language); if (language !== "English") updateLocalLanguage(language); setSpeakInputOpen(false); setSpeakText(""); setSpeakTranslation(""); setSpeakNotice(language !== "English" && !supportsReverseTranslation(languageCode(language)) ? `${language} to English is unavailable because this language model did not pass translation checks.` : ""); }} className="w-full justify-between rounded-xl">{language}<Check className={`size-4 ${speakInputLanguage === language ? "opacity-100 text-primary" : "opacity-0"}`} /></Button>)}</div>}
+                  {speakInputOpen && <div className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-20 max-h-56 overflow-y-auto rounded-2xl border-2 border-border bg-card p-2 shadow-app">{["English", ...LOCAL_LANGUAGES].map((language) => <Button key={language} variant="ghost" onClick={() => { setSpeakInputLanguage(language); if (language !== "English") updateLocalLanguage(language); setSpeakInputOpen(false); setSpeakText(""); setSpeakTranslation(""); setSpeakNotice(language !== "English" && !supportsReverseTranslation(languageCode(language)) ? `${language} to English stays off because current model results are unreliable.` : ""); }} className="w-full justify-between rounded-xl">{language}<Check className={`size-4 ${speakInputLanguage === language ? "opacity-100 text-primary" : "opacity-0"}`} /></Button>)}</div>}
                 </div> : <div className="relative">
                   <Button variant="outline" onClick={() => { setTextInputOpen((open) => !open); setLanguageOpen(false); }} className="h-auto w-full justify-between rounded-2xl border-2 bg-card px-3 py-2.5 text-left shadow-card">
                     <span className="min-w-0"><span className="block text-xs font-semibold text-muted-foreground">{t.speakInput}</span><span className="block truncate font-bold">{textInputLanguage}</span></span><ChevronDown className={`size-5 shrink-0 text-muted-foreground transition-transform ${textInputOpen ? "rotate-180" : ""}`} />
                   </Button>
-                  {textInputOpen && <div className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-20 max-h-56 overflow-y-auto rounded-2xl border-2 border-border bg-card p-2 shadow-app">{["English", ...LOCAL_LANGUAGES].map((language) => <Button key={language} variant="ghost" onClick={() => { setTextInputLanguage(language); if (language !== "English") updateLocalLanguage(language); setTextInputOpen(false); setSpeakText(""); setSpeakTranslation(""); setSpeakNotice(language !== "English" && !supportsReverseTranslation(languageCode(language)) ? `${language} to English is unavailable because this language model did not pass translation checks.` : ""); }} className="w-full justify-between rounded-xl">{language}<Check className={`size-4 ${textInputLanguage === language ? "opacity-100 text-primary" : "opacity-0"}`} /></Button>)}</div>}
+                  {textInputOpen && <div className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-20 max-h-56 overflow-y-auto rounded-2xl border-2 border-border bg-card p-2 shadow-app">{["English", ...LOCAL_LANGUAGES].map((language) => <Button key={language} variant="ghost" onClick={() => { setTextInputLanguage(language); if (language !== "English") updateLocalLanguage(language); setTextInputOpen(false); setSpeakText(""); setSpeakTranslation(""); setSpeakNotice(language !== "English" && !supportsReverseTranslation(languageCode(language)) ? `${language} to English stays off because current model results are unreliable.` : ""); }} className="w-full justify-between rounded-xl">{language}<Check className={`size-4 ${textInputLanguage === language ? "opacity-100 text-primary" : "opacity-0"}`} /></Button>)}</div>}
                 </div>}
                 {(translateMode === "text" ? textInputLanguage !== "English" : speakInputLanguage !== "English") ? <div className="rounded-2xl border-2 border-border bg-card px-3 py-2.5 shadow-card"><span className="block text-xs font-semibold text-muted-foreground">{t.speakOutput}</span><span className="block font-bold">English</span></div> : <div className="relative">
                   <Button variant="outline" onClick={() => { setLanguageOpen((open) => !open); setSpeakInputOpen(false); setTextInputOpen(false); }} className="h-auto w-full justify-between rounded-2xl border-2 bg-card px-3 py-2.5 text-left shadow-card">
@@ -924,7 +924,7 @@ export default function ZipFrontend() {
                   <p className="mt-2 max-w-xs text-sm font-medium text-muted-foreground">Whisper Tiny · local ONNX · audio stays on this device</p>
                 </div>
                 {!speechReady && <Button type="button" onClick={() => void downloadSpeechPack()} disabled={speechModelBusy} variant="outline" className="mb-2 rounded-xl border-2"><Download className="size-4" />{speechModelBusy ? "Loading speech model…" : "Download offline speech model (~44 MiB)"}</Button>}
-                {speakInputLanguage !== "English" && !supportsReverseTranslation(languageCode(localLanguage)) && <p role="status" className="mb-2 text-xs font-medium text-warning-foreground">{localLanguage} to English is unavailable because this language model did not pass translation checks.</p>}
+                {speakInputLanguage !== "English" && !supportsReverseTranslation(languageCode(localLanguage)) && <p role="status" className="mb-2 text-xs font-medium text-warning-foreground">{localLanguage} to English stays off because current model results are unreliable.</p>}
                 {speechReady && (speakInputLanguage === "English" || supportsReverseTranslation(languageCode(localLanguage))) && !(speakInputLanguage === "English" ? packReady : reversePackReady) && <Button type="button" onClick={() => void (speakInputLanguage === "English" ? downloadPack() : downloadReversePack())} disabled={packBusy} variant="outline" className="mb-2 rounded-xl border-2"><Download className="size-4" />{packBusy ? "Loading translation model…" : `Download ${speakInputLanguage === "English" ? `English to ${localLanguage}` : `${localLanguage} to English`} model`}</Button>}
                 {speakText && <div className="mb-2 rounded-2xl border-2 border-border bg-card p-3 text-sm"><strong>{speakInputLanguage}</strong><p className="mt-1">{speakText}</p></div>}
                 {speakTranslation && <div className="mb-2 rounded-2xl border-2 border-border bg-card p-3 text-sm"><strong>{speakInputLanguage === "English" ? localLanguage : "English"}</strong><p className="mt-1">{speakTranslation}</p>{speakInputLanguage === "English" && translationDetails.length > 0 && <p className="mt-2 border-t-2 border-border pt-2 text-xs text-warning-foreground"><strong>Keep exact from original:</strong> {translationDetails.join("; ")}.</p>}</div>}
@@ -933,7 +933,7 @@ export default function ZipFrontend() {
               </div> : <div role="tabpanel" className="mt-4 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-2">
                 <p className="font-display text-xl font-bold">{t.translate}</p>
                 <textarea value={speakText} onChange={(event) => { setSpeakText(event.target.value); setSpeakTranslation(""); setSpeakNotice(""); }} maxLength={600} rows={5} placeholder={textInputLanguage === "English" ? "Enter an English guest message…" : `Enter a ${textInputLanguage} guest message…`} className="w-full resize-none rounded-2xl border-2 border-border bg-card p-3 text-sm outline-none focus:border-primary" />
-                {textInputLanguage !== "English" && !supportsReverseTranslation(languageCode(localLanguage)) && <p role="status" className="text-xs font-medium text-warning-foreground">{localLanguage} to English is unavailable because this language model did not pass translation checks.</p>}
+                {textInputLanguage !== "English" && !supportsReverseTranslation(languageCode(localLanguage)) && <p role="status" className="text-xs font-medium text-warning-foreground">{localLanguage} to English stays off because current model results are unreliable.</p>}
                 {(textInputLanguage === "English" || supportsReverseTranslation(languageCode(localLanguage))) && !(textInputLanguage === "English" ? packReady : reversePackReady) && <Button type="button" onClick={() => void (textInputLanguage === "English" ? downloadPack() : downloadReversePack())} disabled={packBusy} variant="outline" className="rounded-xl border-2"><Download className="size-4" />{packBusy ? "Loading model…" : `Download ${textInputLanguage === "English" ? `English to ${localLanguage}` : `${localLanguage} to English`} model`}</Button>}
                 <Button type="button" onClick={() => void translateText()} disabled={speakBusy || !speakText.trim() || (textInputLanguage !== "English" && !supportsReverseTranslation(languageCode(localLanguage))) || !(textInputLanguage === "English" ? packReady : reversePackReady)} className="rounded-xl"><Languages className="size-4" />{speakBusy ? "Translating…" : "Translate on this device"}</Button>
                 {speakTranslation && <div className="rounded-2xl border-2 border-border bg-card p-3 text-sm"><strong>{textInputLanguage === "English" ? localLanguage : "English"}</strong><p className="mt-1">{speakTranslation}</p>{textInputLanguage === "English" && translationDetails.length > 0 && <p className="mt-2 border-t-2 border-border pt-2 text-xs text-warning-foreground"><strong>Keep exact from original:</strong> {translationDetails.join("; ")}.</p>}</div>}
@@ -971,7 +971,7 @@ export default function ZipFrontend() {
                   <div className="mt-4">
                     <div className="flex items-center justify-between"><h2 className="font-display text-lg font-bold">Connectors</h2><span className="text-xs font-semibold text-muted-foreground">0 connected</span></div>
                     <div className="mt-2 grid grid-cols-3 gap-2">{CONNECTORS.map(({ name, icon }) => <div key={name} className="flex min-w-0 flex-col items-center gap-2 rounded-2xl border-2 border-border bg-card px-1 py-3 text-center shadow-card"><span className="grid size-11 place-items-center rounded-xl bg-background"><svg role="img" aria-label={`${name} logo`} viewBox="0 0 24 24" className="size-7" fill={`#${icon.hex}`}><path d={icon.path} /></svg></span><span className="text-[0.7rem] font-bold leading-tight">{name}</span></div>)}</div>
-                    <p className="mt-2 text-xs font-medium text-muted-foreground">Not connected. Chat messages are demo examples.</p>
+                    <p className="mt-2 text-xs font-medium text-muted-foreground">Connector setup required. Preview messages use sample data.</p>
                   </div>
                    <Button variant="outline" onClick={() => setBusinessView("facts")} className="mt-3 h-12 w-full rounded-xl border-2">Edit confirmed business facts</Button>
                    {bookings.length > 0 && <Button variant="outline" onClick={() => setBusinessView("interactions")} className="mt-2 h-12 w-full rounded-xl border-2">Previously saved interactions ({bookings.length})</Button>}
@@ -1001,7 +1001,7 @@ export default function ZipFrontend() {
                 </>}
                 {businessView === "kpi" && <>
                    <p className="mb-2 text-xs font-bold text-warning-foreground">Saved local data only. No booking or analytics connector is active.</p>
-                  <div className="flex gap-3 rounded-2xl border-2 border-border bg-card p-3 shadow-card"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary"><TrendingUp /></span><div><p className="font-bold">Performance trends unavailable</p><p className="mt-0.5 text-sm font-medium text-muted-foreground">This offline demo does not collect request volume, guest language or feedback analytics.</p></div></div>
+                  <div className="flex gap-3 rounded-2xl border-2 border-border bg-card p-3 shadow-card"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary"><TrendingUp /></span><div><p className="font-bold">Local activity summary</p><p className="mt-0.5 text-sm font-medium text-muted-foreground">Metrics below reflect data saved on this device. Analytics collection stays off.</p></div></div>
                   <div className="mt-3 grid grid-cols-2 gap-3"><Metric icon={<Package />} label="Active products" value={String(products.filter((item) => item.active).length)} change="Saved offline" /><Metric icon={<Tag />} label="Active prices" value={String(prices.filter((item) => item.active).length)} change="Saved offline" /><Metric icon={<MessageCircle />} label="Unread demo chats" value={String(guest.unreadTotal)} change="Demo only" /><Metric icon={<Check />} label="Approved interactions" value={String(bookings.length)} change="Saved offline" /></div>
                 </>}
               </div>
@@ -1137,7 +1137,6 @@ function SettingsView({ t, appLanguage, setAppLanguage, localLanguage, setLocalL
             <span className="rounded-full bg-primary-soft px-2.5 py-1 text-primary">Tourism Intent Mini v2</span>
             <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">Owner-confirmed local facts</span>
           </div>
-          <p className="mt-2 text-xs font-medium text-muted-foreground">Evaluation references: FLORES-200 and MASSIVE are not bundled. OpenStreetMap/Overpass is planned and currently disconnected.</p>
         </div>
         <div className="mt-5 rounded-2xl border-2 border-destructive/30 bg-card p-3">
           <p className="font-bold text-destructive">{t.reset}</p>
