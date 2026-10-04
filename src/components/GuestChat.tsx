@@ -14,15 +14,30 @@ export type Thread = { id: string; name: string; initials: string; tone: string;
 const now = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 export const INITIAL_THREADS: Thread[] = [
-  { id: "coffee", name: "Alex & Jamie", initials: "AJ", tone: "bg-accent-soft text-accent", guests: 2, unread: 1, language: "English", messages: [
+  { id: "lunch-allergy", name: "Priya Shah", initials: "PS", tone: "bg-warning-soft text-warning-foreground", guests: 4, unread: 1, language: "English", messages: [
+    { id: "lunch-allergy-1", from: "guest", text: "Hello Noor, can four of us book lunch this Saturday at 1 PM? One guest is vegetarian and has a peanut allergy.", time: "11:24" },
+  ] },
+  { id: "family-walk", name: "Claire Martin", initials: "CM", tone: "bg-accent-soft text-accent", guests: 3, unread: 1, language: "Français", messages: [
+    { id: "family-walk-1", from: "guest", text: "Bonjour Noor, la promenade au village convient-elle à un enfant de 7 ans et quel est le prix pour trois personnes ?", time: "11:02" },
+  ] },
+  { id: "coffee-pickup", name: "Lukas Weber", initials: "LW", tone: "bg-primary-soft text-primary", guests: 1, unread: 1, language: "Deutsch", messages: [
+    { id: "coffee-pickup-1", from: "guest", text: "Hallo Noor, kann ich heute zwei Packungen Kaffeebohnen abholen? Kann ich bar oder mit Karte bezahlen?", time: "10:51" },
+  ] },
+  { id: "market-pickup", name: "Fatima Ali", initials: "FA", tone: "bg-warning-soft text-warning-foreground", guests: 2, unread: 1, language: "English", messages: [
+    { id: "market-pickup-1", from: "guest", text: "Could you arrange pickup from Ondera Market tomorrow morning, or should we take the local minibus?", time: "10:18" },
+  ] },
+  { id: "rain-plan", name: "Liam Chen", initials: "LC", tone: "bg-accent-soft text-accent", guests: 2, unread: 1, language: "English", messages: [
+    { id: "rain-plan-1", from: "guest", text: "We are planning the coffee tour on Friday. Does the tour still happen if it rains?", time: "09:47" },
+  ] },
+  { id: "coffee", name: "Alex & Jamie", initials: "AJ", tone: "bg-accent-soft text-accent", guests: 2, unread: 0, language: "English", messages: [
     { id: "coffee-1", from: "guest", text: "Hi Noor! We are 2 people visiting tomorrow around 2 PM. Do you have a coffee tour available and how much does it cost?", translation: "Hujambo Noor! Sisi ni watu 2 tunatembelea kesho mwendo wa saa nane mchana. Je, kuna ziara ya kahawa na inagharimu kiasi gani?", time: "10:40" },
     { id: "coffee-2", from: "me", text: "Hello! Our Traditional Coffee Tour takes 2 hours and costs $15 per person ($30 total). I will confirm the 2 PM slot before reserving it for you.", time: "10:42" },
   ] },
-  { id: "vegetarian", name: "Mara & Jonas", initials: "MJ", tone: "bg-primary-soft text-primary", guests: 2, unread: 1, language: "Deutsch", messages: [
+  { id: "vegetarian", name: "Mara & Jonas", initials: "MJ", tone: "bg-primary-soft text-primary", guests: 2, unread: 0, language: "Deutsch", messages: [
     { id: "vegetarian-1", from: "guest", text: "Guten Tag! Wir würden gerne die Farm-Tour machen. Gibt es bei dem Mittagessen auch eine vegetarische Option?", translation: "Habari! Tungependa kufanya ziara ya shamba. Je, kuna chaguo la chakula cha mchana lisilo na nyama?", time: "09:10" },
     { id: "vegetarian-2", from: "me", text: "Guten Tag! Ja, unser Farm-to-Table Mittagessen ($10/Person) bietet frische vegetarische Spezialitäten mit Gemüse von unserem eigenen Feld. Wir bereiten das sehr gerne für Sie vor!", time: "09:13" },
   ] },
-  { id: "directions", name: "Sofia Rossi", initials: "SR", tone: "bg-warning-soft text-warning-foreground", guests: 1, unread: 1, language: "English", messages: [
+  { id: "directions", name: "Sofia Rossi", initials: "SR", tone: "bg-warning-soft text-warning-foreground", guests: 1, unread: 0, language: "English", messages: [
     { id: "directions-1", from: "guest", text: "Is your farm easy to reach with a local taxi or minibus from the town center?", time: "Yesterday" },
     { id: "directions-2", from: "me", text: "Yes! Take the local minibus towards Ondera Market and ask the driver to drop you at 'Noor's Coffee Stop'. It is a 3-minute walk from the main road.", time: "Yesterday" },
   ] },

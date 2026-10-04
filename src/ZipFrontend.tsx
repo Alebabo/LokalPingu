@@ -77,6 +77,15 @@ function money(amount: number, from: string, _to: string) {
 function runLocalAssistant(text: string, language: AppLanguage, products: Product[], prices: PriceItem[], businessName: string, currency = "IDR"): { reply: string; products: Product[]; prices: PriceItem[] } {
   const de = language === "de";
   const lower = text.toLowerCase();
+  if (/(performance|insight|analyse|analysis|auswert|leistung|kpi)/i.test(lower)) {
+    return {
+      reply: de
+        ? "Performance dieses Monats:\n\n• 28 Gästeanfragen insgesamt\n• 5 neue Anfragen warten auf eine Antwort\n• Häufigste Sprachen: Englisch 65 %, Deutsch 20 %, Französisch 15 %\n• Besonders beliebt: traditionelles Röstritual und Farm-to-Table-Mittagessen\n• Häufigste offene Frage: Anreise vom Ondera Market"
+        : "This month’s performance:\n\n• 28 guest requests in total\n• 5 new requests are waiting for a reply\n• Top languages: English 65%, German 20%, French 15%\n• Most praised: traditional roasting ritual and farm-to-table lunch\n• Most common open question: directions from Ondera Market",
+      products,
+      prices,
+    };
+  }
   const addMatch = text.match(/(?:add|create|new|füge?|hinzufügen|neu[e]?[rs]?|erstelle)\s+(.+?)\s+(?:for|für)\s+([\d.,]+)/i);
   if (addMatch) {
     const name = addMatch[1]!.trim();
@@ -92,7 +101,8 @@ function runLocalAssistant(text: string, language: AppLanguage, products: Produc
   }
   const changeMatch = text.match(/(?:change|set|update|ändere|andere|aktualisiere)\s+(.+?)\s+(?:price\s+|preis\s+)?(?:to|auf)\s+([\d.,]+)/i);
   if (changeMatch) {
-    const label = changeMatch[1]!.trim().toLowerCase();
+    const requestedLabel = changeMatch[1]!.trim().toLowerCase();
+    const label = requestedLabel.includes("kaffeebohnen") ? "coffee beans" : requestedLabel;
     const amount = Number(changeMatch[2]!.replace(/\./g, "").replace(",", "."));
     const target = prices.find((p) => p.label.toLowerCase().includes(label));
     if (target && Number.isFinite(amount)) {
@@ -126,7 +136,7 @@ const UI = {
     insights: "Useful insights", allCaught: "You’re all caught up", profileAlert: "Complete your Google profile", profileAlertText: "A complete profile helps LocalPingu answer guests accurately.",
     demand: "Demand is rising", demandText: "Friday and Saturday receive the most guest requests.", priceAlert: "Price list ready", priceAlertText: "Your saved prices can now be used in reply drafts.",
     appLanguage: "App language", localLanguage: "Your spoken language", preferences: "Preferences", currency: "Currency", reset: "Reset app", resetText: "Restart the demo and onboarding on this device.",
-    suggestions: ["Add kayak tour for 250000", "Change breakfast to 60000", "Draft guest reply"],
+    suggestions: ["Evaluate this month's performance", "Change Bag of Fresh Organic Coffee Beans price to 9", "Draft a reply for the newest request"],
     confirmReset: "Reset LocalPingu?", confirmResetText: "This clears demo preferences on this device. Your saved business data stays safe.", cancel: "Cancel", confirm: "Reset app",
     welcome: "Welcome to LocalPingu", welcomeText: "Understand guests, reply confidently, and keep your business knowledge in one place.", continue: "Continue", back: "Back",
     chooseApp: "Choose the app language", chooseAppText: "You can change this later in Settings.", chooseLocal: "Which language do you speak?", chooseLocalText: "Guests speak English. LocalPingu translates for you.",
@@ -143,7 +153,7 @@ const UI = {
     insights: "Nützliche Hinweise", allCaught: "Alles angesehen", profileAlert: "Google-Profil vervollständigen", profileAlertText: "Ein vollständiges Profil hilft LocalPingu, Gästen korrekt zu antworten.",
     demand: "Nachfrage steigt", demandText: "Freitag und Samstag erhalten die meisten Gästeanfragen.", priceAlert: "Preisliste bereit", priceAlertText: "Gespeicherte Preise können jetzt in Antwortentwürfen genutzt werden.",
     appLanguage: "App-Sprache", localLanguage: "Deine Sprache", preferences: "Präferenzen", currency: "Währung", reset: "App zurücksetzen", resetText: "Demo und Onboarding auf diesem Gerät neu starten.",
-    suggestions: ["Füge Kajaktour für 250000 hinzu", "Ändere Frühstück auf 60000", "Antwortentwurf für Gast"],
+    suggestions: ["Performance dieses Monats auswerten", "Ändere Kaffeebohnen Preis auf 9", "Antwort auf die neueste Anfrage entwerfen"],
     confirmReset: "LocalPingu zurücksetzen?", confirmResetText: "Demo-Einstellungen werden gelöscht. Gespeicherte Betriebsdaten bleiben erhalten.", cancel: "Abbrechen", confirm: "App zurücksetzen",
     welcome: "Willkommen bei LocalPingu", welcomeText: "Verstehe Gäste, antworte sicher und verwalte dein Betriebswissen an einem Ort.", continue: "Weiter", back: "Zurück",
     chooseApp: "App-Sprache wählen", chooseAppText: "Du kannst sie später in den Einstellungen ändern.", chooseLocal: "Welche Sprache sprichst du?", chooseLocalText: "Gäste sprechen Englisch. LocalPingu übersetzt für dich.",
