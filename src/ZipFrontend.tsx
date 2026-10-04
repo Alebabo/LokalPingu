@@ -988,6 +988,7 @@ function DeviceSimulator({ level, profile, onChange }: { level: number; profile:
 
 function ModelConsole({ events, online }: { events: ModelEvent[]; online: boolean }) {
   const endRef = useRef<HTMLDivElement>(null);
+  const [collapsed, setCollapsed] = useState(false);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [events.length]);
   const latest = events.at(-1);
   const colors: Record<ModelEventKind, string> = {
@@ -998,13 +999,15 @@ function ModelConsole({ events, online }: { events: ModelEvent[]; online: boolea
     error: "text-red-300",
   };
   return (
-    <aside className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[1.5rem] border border-emerald-950 bg-[#07110f] font-mono text-slate-100 shadow-app" aria-label="Local model runtime console">
+    <aside className={`flex min-w-0 flex-col overflow-hidden rounded-[1.5rem] border border-emerald-950 bg-[#07110f] font-mono text-slate-100 shadow-app transition-[flex,height] ${collapsed ? "h-14 shrink-0" : "min-h-0 flex-1"}`} aria-label="Local model runtime console">
       <div className="flex h-14 shrink-0 items-center gap-2 border-b border-emerald-950 bg-[#0a1714] px-4">
         <span className="size-2.5 rounded-full bg-red-400" /><span className="size-2.5 rounded-full bg-amber-300" /><span className="size-2.5 rounded-full bg-emerald-400" />
         <span className="ml-2 truncate text-xs font-semibold text-slate-300">lokalpingu://model-runtime</span>
+        {collapsed && <span className="min-w-0 truncate text-[0.65rem] text-emerald-300">{latest?.model}</span>}
         <span className="ml-auto rounded border border-emerald-700/60 bg-emerald-900/30 px-2 py-1 text-[0.65rem] font-bold text-emerald-300">LOCAL ONLY</span>
+        <button type="button" onClick={() => setCollapsed((value) => !value)} aria-expanded={!collapsed} aria-label={collapsed ? "Terminal ausklappen" : "Terminal einklappen"} title={collapsed ? "Terminal ausklappen" : "Terminal einklappen"} className="grid size-8 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-emerald-950 hover:text-emerald-300"><ChevronDown className={`size-4 transition-transform ${collapsed ? "" : "rotate-180"}`} /></button>
       </div>
-      <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-emerald-950 px-4 py-3">
+      {!collapsed && <><div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-emerald-950 px-4 py-3">
         <div className="min-w-0"><p className="text-[0.65rem] uppercase tracking-[0.18em] text-slate-500">Active model</p><p className="truncate text-sm font-bold text-emerald-300">{latest?.model ?? "Runtime"}</p></div>
         <span className={`flex items-center gap-1.5 text-[0.65rem] font-bold ${online ? "text-cyan-300" : "text-amber-300"}`}><span className={`size-2 rounded-full ${online ? "bg-cyan-300" : "bg-amber-300"}`} />{online ? "ONLINE" : "OFFLINE"}</span>
       </div>
@@ -1016,6 +1019,7 @@ function ModelConsole({ events, online }: { events: ModelEvent[]; online: boolea
         </div>
       </div>
       <div className="shrink-0 border-t border-emerald-950 bg-[#0a1714] px-4 py-3 text-[0.65rem] text-slate-500">No cloud inference · audio and business facts stay on device</div>
+      </>}
     </aside>
   );
 }
