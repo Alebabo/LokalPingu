@@ -19,7 +19,7 @@ export const INITIAL_THREADS: Thread[] = [
     { id: "coffee-2", from: "me", text: "Hello! Our Traditional Coffee Tour takes 2 hours and costs $15 per person ($30 total). I will confirm the 2 PM slot before reserving it for you.", time: "10:42" },
   ] },
   { id: "vegetarian", name: "Mara & Jonas", initials: "MJ", tone: "bg-primary-soft text-primary", guests: 2, unread: 1, language: "Deutsch", messages: [
-    { id: "vegetarian-1", from: "guest", text: "Guten Tag! Wir würden gerne die Farm-Tour machen. Gibt es bei dem Mittagessen auch eine vegetarische Option?", time: "09:10" },
+    { id: "vegetarian-1", from: "guest", text: "Guten Tag! Wir würden gerne die Farm-Tour machen. Gibt es bei dem Mittagessen auch eine vegetarische Option?", translation: "Habari! Tungependa kufanya ziara ya shamba. Je, kuna chaguo la chakula cha mchana lisilo na nyama?", time: "09:10" },
     { id: "vegetarian-2", from: "me", text: "Guten Tag! Ja, unser Farm-to-Table Mittagessen ($10/Person) bietet frische vegetarische Spezialitäten mit Gemüse von unserem eigenen Feld. Wir bereiten das sehr gerne für Sie vor!", time: "09:13" },
   ] },
   { id: "directions", name: "Sofia Rossi", initials: "SR", tone: "bg-warning-soft text-warning-foreground", guests: 1, unread: 1, language: "English", messages: [
@@ -148,9 +148,15 @@ export function Conversation({ thread, onBack, onSend, copy, language, packReady
   const toggleTranslation = async (message: ChatMessage) => {
     if (shown[message.id]) { setShown((items) => ({ ...items, [message.id]: false })); return; }
     setShown((items) => ({ ...items, [message.id]: true }));
-    if (message.translation) {
+    if (message.translation && language === "Kiswahili") {
       setTranslations((items) => ({ ...items, [message.id]: message.translation! }));
-      onModelEvent?.("Demo Translation", "output", `Stored translation: “${message.translation.slice(0, 180)}”`);
+      onModelEvent?.("Verified Demo Translation", "output", `Stored translation: “${message.translation.slice(0, 180)}”`);
+      return;
+    }
+    if (thread.language !== "English") {
+      const unavailable = `No verified offline ${thread.language} → ${language} model is installed.`;
+      setTranslations((items) => ({ ...items, [message.id]: unavailable }));
+      onModelEvent?.("Translation router", "error", unavailable);
       return;
     }
     if (!packReady) { setTranslations((items) => ({ ...items, [message.id]: "Download this language's offline model in Settings first." })); return; }
